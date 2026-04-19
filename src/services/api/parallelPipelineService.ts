@@ -152,6 +152,42 @@ const audioFileCache = new Map<string, {
   contentType: string;
 }>();
 
+function isLikelyAudioBuffer(buffer: ArrayBuffer): boolean {
+  if (buffer.byteLength < 12) {
+    return false;
+  }
+
+  const bytes = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 16));
+
+  // MP3 frame sync or ID3 tag
+  if ((bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) ||
+      (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33)) {
+    return true;
+  }
+
+  // WAV / RIFF container
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
+    return true;
+  }
+
+  // MP4/M4A container (ftyp)
+  if (bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+    return true;
+  }
+
+  // OGG
+  if (bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) {
+    return true;
+  }
+
+  // WebM/Matroska
+  if (bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Download complete audio file from ytdown.io URL
  */
@@ -164,7 +200,27 @@ async function downloadCompleteAudioFile(directUrl: string): Promise<Blob> {
     throw new Error(`Failed to download audio file: ${response.status} ${response.statusText}`);
   }
 
-  return await response.blob();
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const isMediaContentType =
+    contentType.startsWith('audio/') ||
+    contentType.startsWith('video/') ||
+    contentType.includes('application/octet-stream');
+
+  if (!isMediaContentType) {
+    throw new Error(`Direct audio download returned non-media content-type: ${contentType || 'unknown'}`);
+  }
+
+  const blob = await response.blob();
+  if (blob.size === 0) {
+    throw new Error('Direct audio download returned empty payload');
+  }
+
+  const rawBuffer = await blob.arrayBuffer();
+  if (!isLikelyAudioBuffer(rawBuffer)) {
+    throw new Error('Direct audio download payload is not a valid audio container');
+  }
+
+  return new Blob([rawBuffer], { type: blob.type || contentType || 'audio/mpeg' });
 }
 
 /**

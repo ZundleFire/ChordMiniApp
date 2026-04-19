@@ -137,14 +137,20 @@ async function fetchFileFromUrl(url: string, videoId?: string): Promise<File> {
       if (cachedFile) {
         console.log(`🚀 Using cached complete audio file for analysis (${(cachedFile.size / 1024 / 1024).toFixed(2)}MB)`);
 
+        const cachedBuffer = await cachedFile.arrayBuffer();
+        if (!isLikelyAudioBuffer(cachedBuffer)) {
+          console.warn(`⚠️ Cached complete audio file is invalid for ${videoId}, ignoring cache and refetching from URL`);
+          throw new Error('Invalid cached audio payload');
+        }
+
         // Convert Blob to File with proper name and type
         const fileName = `${videoId}.${cachedFile.type.includes('mp4') ? 'm4a' : 'mp3'}`;
-        return new File([cachedFile], fileName, { type: cachedFile.type || 'audio/mpeg' });
+        return new File([cachedBuffer], fileName, { type: cachedFile.type || 'audio/mpeg' });
       } else {
         console.log(`⚠️ No cached file found for ${videoId}, proceeding with URL fetch`);
       }
     } catch (cacheError) {
-      console.warn(`⚠️ Cache lookup failed for ${videoId}:`, cacheError);
+      console.warn(`⚠️ Cache lookup failed for ${videoId}, proceeding with URL fetch:`, cacheError);
     }
   }
 
