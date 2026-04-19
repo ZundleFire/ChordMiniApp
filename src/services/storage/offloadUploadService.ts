@@ -21,6 +21,18 @@ class OffloadUploadService {
   private readonly REQUEST_BODY_LIMIT_BYTES = 4.5 * 1024 * 1024;
   private readonly MULTIPART_BODY_HEADROOM_BYTES = 512 * 1024;
   private readonly FIREBASE_OFFLOAD_PREFIX = 'temp';
+  private offloadTemporarilyDisabled = false;
+
+  private isOffloadFeatureEnabled(): boolean {
+    // Default OFF for safety in environments without validated Firebase Storage CORS/rules.
+    const raw = process.env.NEXT_PUBLIC_ENABLE_FIREBASE_OFFLOAD_UPLOAD;
+    if (!raw) {
+      return false;
+    }
+
+    const normalized = raw.trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+  }
 
   /**
    * Check if we are running in localhost development mode.
@@ -52,6 +64,14 @@ class OffloadUploadService {
    * Check if file should use offload upload based on environment and file size.
    */
   shouldUseOffloadUpload(fileSize: number): boolean {
+    if (!this.isOffloadFeatureEnabled()) {
+      return false;
+    }
+
+    if (this.offloadTemporarilyDisabled) {
+      return false;
+    }
+
     if (this.isLocalhostDevelopment()) {
       return false;
     }
@@ -86,7 +106,7 @@ class OffloadUploadService {
    * Check whether Firebase offload upload is available.
    */
   isOffloadUploadAvailable(): boolean {
-    return this.isFirebaseConfigured();
+    return this.isOffloadFeatureEnabled() && !this.offloadTemporarilyDisabled && this.isFirebaseConfigured();
   }
 
   /**
@@ -199,10 +219,21 @@ class OffloadUploadService {
       return getDownloadURL(snapshot.ref);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const normalized = errorMessage.toLowerCase();
       const isPermissionError =
         errorMessage.includes('storage/unauthorized')
         || errorMessage.includes('permission')
         || errorMessage.includes('403');
+      const isRetryOrCorsError =
+        normalized.includes('storage/retry-limit-exceeded')
+        || normalized.includes('max retry time for operation exceeded')
+        || normalized.includes('cors')
+        || normalized.includes('preflight');
+
+      if (isPermissionError || isRetryOrCorsError) {
+        this.offloadTemporarilyDisabled = true;
+        console.warn('⚠️ Disabling Firebase offload uploads for this session due to repeated upload failures. Falling back to standard flow.');
+      }
 
       if (isPermissionError) {
         throw new Error(
