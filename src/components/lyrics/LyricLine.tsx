@@ -343,6 +343,116 @@ const LyricLineComponent: React.FC<LyricLineProps> = ({
     };
   }, [index, line.startTime, processedLines, segmentationData]);
 
+  const beatGridRows = useMemo(() => {
+    if (!line.chords || line.chords.length === 0 || !line.text) {
+      return null;
+    }
+
+    const sorted = [...line.chords]
+      .filter((c) => typeof c.position === 'number' && c.chord)
+      .sort((a, b) => a.position - b.position);
+
+    if (!sorted.length) {
+      return null;
+    }
+
+    const placed: Array<{ start: number; end: number; label: string }> = [];
+    let cursor = 0;
+
+    for (const chord of sorted) {
+      const label = normalizeChordForDedup(chord.chord);
+      const preferredStart = Math.max(0, Math.floor(chord.position ?? 0));
+      const start = Math.max(preferredStart, cursor);
+      const end = start + Math.max(1, label.length) - 1;
+      placed.push({ start, end, label });
+      cursor = end + 2;
+    }
+
+    const minWidth = Math.max(
+      line.text.length,
+      placed.length ? placed[placed.length - 1].end + 1 : 0
+    );
+
+    const chordChars = Array.from({ length: minWidth }, () => ' ');
+    placed.forEach((item) => {
+      for (let i = 0; i < item.label.length; i++) {
+        const idx = item.start + i;
+        if (idx >= 0 && idx < chordChars.length) {
+          chordChars[idx] = item.label[i];
+        }
+      }
+    });
+
+    // Add beat dots between chord changes using fixed slots for a compact lead-sheet feel.
+    for (let i = 0; i < placed.length; i++) {
+      const from = placed[i].end + 2;
+      const to = i < placed.length - 1 ? placed[i + 1].start - 1 : minWidth - 1;
+      for (let p = from; p <= to; p += 4) {
+        if (p >= 0 && p < chordChars.length && chordChars[p] === ' ') {
+          chordChars[p] = '.';
+        }
+      }
+    }
+
+    const chordRow = chordChars.join('').replace(/\s+$/g, '');
+    const lyricRow = line.text.padEnd(chordChars.length, ' ').replace(/\s+$/g, '');
+    return { chordRow, lyricRow };
+  }, [line.chords, line.text]);
+
+  if (beatGridRows) {
+    return (
+      <div key={index}>
+        {isFirstLineOfSection && sectionLabel && (
+          <div className={`mb-2 mt-4 first:mt-0 text-left ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            <div
+              className={`inline-block px-2 py-1 rounded-lg font-medium uppercase tracking-wide ${
+                darkMode ? 'bg-gray-800 border border-gray-600' : 'bg-gray-100 border border-gray-300'
+              }`}
+              style={{
+                fontSize: `${fontSize * 0.85}px`,
+              }}
+            >
+              {sectionLabel}
+            </div>
+          </div>
+        )}
+
+        <div id={`line-${index}`} className={`mb-4 ${isActive ? 'active' : ''} ${isPast ? 'past' : ''}`}>
+          <div className="overflow-x-auto">
+            <pre
+              className="m-0 p-0 leading-snug"
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: `${fontSize * 0.92}px`,
+                color: isPast ? textColors.played : textColors.unplayed,
+                whiteSpace: 'pre',
+              }}
+            >
+              <span style={{ color: textColors.chord }}>{beatGridRows.chordRow}</span>
+              {'\n'}
+              <span>{beatGridRows.lyricRow}</span>
+            </pre>
+          </div>
+
+          {translatedTexts.length > 0 && (
+            <div className={`mt-2 pt-2 border-t ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+              {translatedTexts.map((translation, i) => (
+                <div key={i} className="mb-1">
+                  <div
+                    className={`italic mt-0.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}
+                    style={{ fontSize: `${fontSize * 0.85}px` }}
+                  >
+                    {translation.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div key={index}>
       {/* Section Label - only show at the beginning of each section */}
