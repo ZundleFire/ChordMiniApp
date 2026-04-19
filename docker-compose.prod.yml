@@ -9,15 +9,13 @@
 # Stop:
 #   docker-compose -f docker-compose.prod.yml down
 
-version: '3.8'
-
 services:
   # Frontend - Next.js Application
   frontend:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: chordmini-frontend
     ports:
       - "3001:3000"
     environment:
@@ -37,7 +35,7 @@ services:
       # API Configuration (Public)
       - NEXT_PUBLIC_YOUTUBE_API_KEY=${NEXT_PUBLIC_YOUTUBE_API_KEY}
       - NEXT_PUBLIC_PYTHON_API_URL=${NEXT_PUBLIC_PYTHON_API_URL:-http://backend:8080}
-      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3001}
 
       # Feature Flags (Public)
       - NEXT_PUBLIC_AUDIO_STRATEGY=${NEXT_PUBLIC_AUDIO_STRATEGY:-ytdlp}
@@ -69,10 +67,10 @@ services:
 
   # Backend - Python Flask ML Service
   backend:
+    platform: linux/amd64
     build:
       context: ./python_backend
       dockerfile: Dockerfile
-    container_name: chordmini-backend
     ports:
       - "8080:8080"
     environment:
@@ -102,9 +100,7 @@ services:
 networks:
   chordmini-network:
     driver: bridge
-    name: chordmini-network
 
 volumes:
   backend-cache:
-    name: chordmini-backend-cache
 
