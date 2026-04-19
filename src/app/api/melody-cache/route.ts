@@ -83,6 +83,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, cached: true, data });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown melody cache error';
+
+    if (message.includes('Failed to acquire Firestore admin credentials')) {
+      console.warn('⚠️ [API] Melody cache unavailable without Firestore admin credentials; treating as cache miss');
+      return NextResponse.json({ success: true, cached: false, data: null });
+    }
+
     console.error('❌ [API] Failed to read melody cache:', message);
     return NextResponse.json(
       { success: false, cached: false, error: message },

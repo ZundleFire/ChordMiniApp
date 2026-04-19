@@ -321,6 +321,12 @@ export async function saveAudioFileMetadata(
  */
 export async function getAudioFileMetadata(videoId: string): Promise<AudioFileData | null> {
   try {
+    // Client-side bucket scans trigger Firebase Storage CORS preflights and timeouts.
+    // This cache path should only use metadata, which is currently unavailable here.
+    if (typeof window !== 'undefined') {
+      return null;
+    }
+
     const existingFile = await findExistingAudioFile(videoId);
     if (!existingFile) {
       return null;
