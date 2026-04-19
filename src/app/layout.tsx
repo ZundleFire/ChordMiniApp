@@ -194,9 +194,15 @@ export default function RootLayout({
         <link rel="icon" href="/chordMiniLogo.webp" type="image/webp" sizes="32x32" />
         <link rel="icon" href="/chordMiniLogo.webp" type="image/webp" sizes="16x16" />
         <link rel="apple-touch-icon" href="/chordMiniLogo.webp" sizes="180x180" />
-        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="manifest" href="/manifest.json" />
 
-        {/* Removed global image preloads: let Next/Image with priority handle above-the-fold assets on the pages that use them to avoid preload-not-used warnings. */}
+        {/* PWA meta tags for offline support and installability */}
+        <meta name="theme-color" content="#0066cc" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="ChordMini" />
 
         {/* DNS prefetch for external services */}
         <link rel="dns-prefetch" href="//youtube.com" />

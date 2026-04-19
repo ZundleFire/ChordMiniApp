@@ -2,6 +2,76 @@
 const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true',
 });
+const withPWA = require('next-pwa')({
+  dest: 'public',
+  register: true,
+  skipWaiting: false,
+  runtimeCaching: [
+    {
+      urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'google-fonts-cache',
+        expiration: {
+          maxEntries: 30,
+          maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+        },
+      },
+    },
+    {
+      urlPattern: /^https:\/\/(yt3\.ggpht\.com|lh3\.googleusercontent\.com|.*\.ytimg\.com|.*\.ggpht\.com)/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'youtube-images-cache',
+        expiration: {
+          maxEntries: 60,
+          maxAgeSeconds: 60 * 60 * 24 * 7, // 1 week
+        },
+      },
+    },
+    {
+      urlPattern: /^https:\/\/firebasestorage\.googleapis\.com/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'firebase-storage-cache',
+        expiration: {
+          maxEntries: 60,
+          maxAgeSeconds: 60 * 60 * 24 * 30, // 1 month
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:png|jpg|jpeg|svg|webp)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'image-cache',
+        maxEntries: 100,
+        maxAgeSeconds: 60 * 60 * 24 * 30, // 1 month
+      },
+    },
+    {
+      urlPattern: /\.(?:mp3|wav|m4a|opus|webm)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'audio-cache',
+        maxEntries: 50,
+        maxAgeSeconds: 60 * 60 * 24 * 7, // 1 week
+      },
+    },
+    {
+      urlPattern: /\/api\/.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'api-cache',
+        expiration: {
+          maxEntries: 50,
+          maxAgeSeconds: 60 * 60, // 1 hour
+        },
+        networkTimeoutSeconds: 5,
+      },
+    },
+  ],
+});
 
 const connectSrcValues = Array.from(new Set([
   "'self'",
@@ -380,4 +450,4 @@ const nextConfig = {
   // Use `next lint` CLI options instead: https://nextjs.org/docs/app/api-reference/cli/next#next-lint-options
 };
 
-module.exports = withBundleAnalyzer(nextConfig);
+module.exports = withPWA(withBundleAnalyzer(nextConfig));
