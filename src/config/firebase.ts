@@ -33,6 +33,7 @@ let auth: Auth | null = null;
 // Initialization state
 let initializationPromise: Promise<void> | null = null;
 let isInitialized = false;
+let hasLoggedMissingConfig = false;
 
 /**
  * Initialize Firebase with runtime configuration
@@ -64,8 +65,11 @@ async function initializeFirebase(): Promise<void> {
         !!firebaseConfig.storageBucket;
 
       if (!hasRequiredConfig) {
-        console.warn('Missing required Firebase configuration. Firebase will not be initialized.');
-        console.warn('Required variables: NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
+        if (!hasLoggedMissingConfig) {
+          console.warn('Missing required Firebase configuration. Firebase will not be initialized.');
+          console.warn('Required variables: NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
+          hasLoggedMissingConfig = true;
+        }
         return;
       }
 
