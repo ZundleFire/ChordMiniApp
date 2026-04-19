@@ -34,6 +34,7 @@ let auth: Auth | null = null;
 let initializationPromise: Promise<void> | null = null;
 let isInitialized = false;
 let hasLoggedMissingConfig = false;
+let hasLoggedTranslationsUnavailable = false;
 
 /**
  * Initialize Firebase with runtime configuration
@@ -334,7 +335,10 @@ export const SEGMENTATION_JOBS_COLLECTION = 'segmentationJobs';
 // Initialize translations collection if it doesn't exist
 export const initTranslationsCollection = async () => {
   if (!db) {
-    console.warn('Firebase not initialized, skipping translations collection initialization');
+    if (!hasLoggedTranslationsUnavailable) {
+      console.warn('Firebase not initialized, skipping translations collection initialization');
+      hasLoggedTranslationsUnavailable = true;
+    }
     return;
   }
 

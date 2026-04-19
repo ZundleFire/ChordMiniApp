@@ -11,6 +11,14 @@ const ServiceWorkerRegistration: React.FC = () => {
 
   useEffect(() => {
     if (!isServiceWorkerEnabled) {
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        // If SW is disabled by config, proactively unregister stale workers.
+        navigator.serviceWorker.getRegistrations()
+          .then((registrations) => Promise.all(registrations.map((reg) => reg.unregister())))
+          .catch(() => {
+            // Ignore cleanup failures; app can continue without SW.
+          });
+      }
       return;
     }
 

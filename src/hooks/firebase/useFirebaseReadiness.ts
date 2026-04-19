@@ -14,6 +14,7 @@ export const useFirebaseReadiness = () => {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let attempts = 0;
     const maxRetries = 6;
+    let hasLoggedFailure = false;
 
     const hasRequiredFirebaseConfig = async (): Promise<boolean> => {
       const { getFirebaseConfig } = await import('@/config/publicConfig');
@@ -49,19 +50,27 @@ export const useFirebaseReadiness = () => {
         }
 
         attempts = 0;
+        hasLoggedFailure = false;
         setFirebaseReady(true);
       } catch (error) {
         if (cancelled) {
           return;
         }
 
+        const message = error instanceof Error ? error.message : String(error);
+        const isNonRecoverable =
+          message.includes('Missing required Firebase configuration') ||
+          message.includes('Firestore initialization failed - db is null after initialization') ||
+          message.includes('Firestore instance not available');
+
         attempts += 1;
-        if (attempts <= 2 || attempts === maxRetries) {
+        if (!hasLoggedFailure || attempts === maxRetries) {
           console.error('❌ Firebase connection failed:', error);
+          hasLoggedFailure = true;
         }
         setFirebaseReady(false);
 
-        if (attempts < maxRetries) {
+        if (!isNonRecoverable && attempts < maxRetries) {
           // Retry with backoff for transient network/startup timing issues.
           const delay = Math.min(2000 * Math.pow(2, attempts - 1), 15000);
           retryTimeout = setTimeout(() => {
