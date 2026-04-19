@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Card, CardBody, Image, Button, Empty } from '@heroui/react';
+import { Card, CardBody, Image, Button } from '@heroui/react';
 import Navigation from '@/components/common/Navigation';
 import { useFavorites } from '@/hooks/useUserLibrary';
 import { useUser } from '@/contexts/UserContext';

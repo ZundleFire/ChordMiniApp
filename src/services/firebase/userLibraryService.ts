@@ -14,7 +14,6 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { useUser } from '@/contexts/UserContext';
 
 export interface FavoriteTrack {
   id?: string;
@@ -41,12 +40,20 @@ const FAVORITES_COLLECTION = 'users';
 const PLAYLISTS_COLLECTION = 'playlists';
 
 export class UserLibraryService {
+  private static getDb() {
+    if (!db) {
+      throw new Error('Firestore is not initialized');
+    }
+    return db;
+  }
+
   /**
    * Add a track to user's favorites
    */
   static async addToFavorites(userId: string, track: Omit<FavoriteTrack, 'id' | 'addedAt'>) {
     try {
-      const userDocRef = doc(db, FAVORITES_COLLECTION, userId);
+      const firestore = this.getDb();
+      const userDocRef = doc(firestore, FAVORITES_COLLECTION, userId);
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
@@ -86,7 +93,8 @@ export class UserLibraryService {
    */
   static async removeFromFavorites(userId: string, videoId: string) {
     try {
-      const userDocRef = doc(db, FAVORITES_COLLECTION, userId);
+      const firestore = this.getDb();
+      const userDocRef = doc(firestore, FAVORITES_COLLECTION, userId);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
@@ -108,7 +116,8 @@ export class UserLibraryService {
    */
   static async getFavorites(userId: string): Promise<FavoriteTrack[]> {
     try {
-      const userDocRef = doc(db, FAVORITES_COLLECTION, userId);
+      const firestore = this.getDb();
+      const userDocRef = doc(firestore, FAVORITES_COLLECTION, userId);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
@@ -140,7 +149,8 @@ export class UserLibraryService {
    */
   static async createPlaylist(userId: string, name: string, description?: string) {
     try {
-      const playlistRef = doc(collection(db, PLAYLISTS_COLLECTION));
+      const firestore = this.getDb();
+      const playlistRef = doc(collection(firestore, PLAYLISTS_COLLECTION));
 
       const playlist: Playlist = {
         id: playlistRef.id,
@@ -166,8 +176,9 @@ export class UserLibraryService {
    */
   static async getUserPlaylists(userId: string): Promise<Playlist[]> {
     try {
+      const firestore = this.getDb();
       const q = query(
-        collection(db, PLAYLISTS_COLLECTION),
+        collection(firestore, PLAYLISTS_COLLECTION),
         where('userId', '==', userId),
         orderBy('updatedAt', 'desc')
       );
@@ -188,7 +199,8 @@ export class UserLibraryService {
    */
   static async addTrackToPlaylist(playlistId: string, videoId: string) {
     try {
-      const playlistRef = doc(db, PLAYLISTS_COLLECTION, playlistId);
+      const firestore = this.getDb();
+      const playlistRef = doc(firestore, PLAYLISTS_COLLECTION, playlistId);
       const playlistDoc = await getDoc(playlistRef);
 
       if (!playlistDoc.exists()) {
@@ -219,7 +231,8 @@ export class UserLibraryService {
    */
   static async removeTrackFromPlaylist(playlistId: string, videoId: string) {
     try {
-      const playlistRef = doc(db, PLAYLISTS_COLLECTION, playlistId);
+      const firestore = this.getDb();
+      const playlistRef = doc(firestore, PLAYLISTS_COLLECTION, playlistId);
       const playlistDoc = await getDoc(playlistRef);
 
       if (!playlistDoc.exists()) {
@@ -247,7 +260,8 @@ export class UserLibraryService {
     updates: Partial<Pick<Playlist, 'name' | 'description' | 'isPublic'>>
   ) {
     try {
-      const playlistRef = doc(db, PLAYLISTS_COLLECTION, playlistId);
+      const firestore = this.getDb();
+      const playlistRef = doc(firestore, PLAYLISTS_COLLECTION, playlistId);
 
       await updateDoc(playlistRef, {
         ...updates,
@@ -264,7 +278,8 @@ export class UserLibraryService {
    */
   static async deletePlaylist(playlistId: string) {
     try {
-      const playlistRef = doc(db, PLAYLISTS_COLLECTION, playlistId);
+      const firestore = this.getDb();
+      const playlistRef = doc(firestore, PLAYLISTS_COLLECTION, playlistId);
       await deleteDoc(playlistRef);
     } catch (error) {
       console.error('Error deleting playlist:', error);

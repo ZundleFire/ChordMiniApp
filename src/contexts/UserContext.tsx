@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import {
   getAuth,
   signInWithPopup,
@@ -9,7 +9,7 @@ import {
   User,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { useClientOnlyFirebase } from '@/utils/clientOnlyFirebase';
+import { useIsClientSide } from '@/utils/clientOnlyFirebase';
 
 export interface UserContextType {
   user: User | null;
@@ -26,13 +26,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { isReady } = useClientOnlyFirebase();
-
-  const auth = getAuth();
+  const isReady = useIsClientSide();
+  const auth = useMemo(() => {
+    if (!isReady) return null;
+    try {
+      return getAuth();
+    } catch {
+      return null;
+    }
+  }, [isReady]);
 
   // Set up auth state listener
   useEffect(() => {
-    if (!isReady) return;
+    if (!isReady || !auth) return;
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -43,6 +49,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [isReady, auth]);
 
   const signInWithGoogle = useCallback(async () => {
+    if (!auth) {
+      const authError = new Error('Firebase Auth is not initialized');
+      setError(authError.message);
+      throw authError;
+    }
+
     try {
       setError(null);
       setLoading(true);
@@ -59,6 +71,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [auth]);
 
   const logout = useCallback(async () => {
+    if (!auth) {
+      const authError = new Error('Firebase Auth is not initialized');
+      setError(authError.message);
+      throw authError;
+    }
+
     try {
       setError(null);
       await signOut(auth);
