@@ -58,6 +58,13 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
 
   // Read correction toggle from Zustand store (shared with Beat & Chord Map tab)
   const showCorrectedChords = useShowCorrectedChords();
+  const beatsPerMeasure = useMemo(() => {
+    const raw = analysisResults?.beatDetectionResult?.time_signature;
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return Math.max(2, Math.min(16, Math.round(raw)));
+    }
+    return 4;
+  }, [analysisResults?.beatDetectionResult?.time_signature]);
 
   // Chord-centric timeline: compute beat times and beat-aligned chord change events.
   // Chord changes are the authoritative timing source for lyrics alignment.
@@ -67,7 +74,11 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
   }, [analysisResults?.beats]);
 
   const beatAlignedChords = useMemo(() => {
-    if (!analysisResults?.synchronizedChords || !beatTimes.length) return null as null | { time: number; chord: string }[];
+    if (!analysisResults?.synchronizedChords || !beatTimes.length) {
+      return null as null | Array<{ time: number; chord: string; beatIndex?: number; beatNum?: number }>;
+    }
+
+    const beatsInfo: BeatInfo[] = (analysisResults?.beats as BeatInfo[]) || [];
 
     // Build chord array from synchronizedChords (one entry per beat, forward-filled)
     const rawChords: string[] = analysisResults.synchronizedChords.map(
@@ -87,9 +98,9 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
     const correctionMap = buildChordOccurrenceCorrectionMap(sequenceCorrections ?? null);
     const sequenceIndexMap = buildChordSequenceIndexMap(rawChords, sequenceCorrections?.originalSequence);
 
-    const events: { time: number; chord: string }[] = [];
+    const events: Array<{ time: number; chord: string; beatIndex?: number; beatNum?: number }> = [];
     let lastNormalized = '';
-    analysisResults.synchronizedChords.forEach((item: { chord: string; beatIndex: number }, idx: number) => {
+    analysisResults.synchronizedChords.forEach((item: { chord: string; beatIndex: number; beatNum?: number }, idx: number) => {
       const beatIdx = item?.beatIndex ?? -1;
       if (beatIdx < 0 || beatIdx >= beatTimes.length) return;
 
@@ -121,10 +132,20 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
       // Filtering N/C prevents gap-duplicates like B → N/C → B collapsing to B, B.
       if (!chordLabel || chordLabel === 'N/C' || chordLabel === 'N' || chordLabel === lastNormalized) return;
       lastNormalized = chordLabel;
-      events.push({ time: beatTimes[beatIdx], chord: chordLabel });
+
+      const beatNumFromSeries = beatsInfo[beatIdx]?.beatNum;
+      const inferredBeatNum = ((beatIdx % beatsPerMeasure) + 1);
+      const beatNum = item.beatNum ?? beatNumFromSeries ?? inferredBeatNum;
+
+      events.push({
+        time: beatTimes[beatIdx],
+        chord: chordLabel,
+        beatIndex: beatIdx,
+        beatNum,
+      });
     });
     return events;
-  }, [analysisResults, beatTimes, simplifyChords, sequenceCorrections, showCorrectedChords]);
+  }, [analysisResults, beatTimes, simplifyChords, sequenceCorrections, showCorrectedChords, beatsPerMeasure]);
 
   // Compute accidental preference (sharp vs flat).
   // Key signature (from Gemini) is authoritative; heuristic is fallback.
@@ -313,6 +334,7 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
         onFontSizeChange={onFontSizeChange}
         darkMode={theme === 'dark'}
         chords={beatAlignedChords || []}
+        beatsPerMeasure={beatsPerMeasure}
         segmentationData={segmentationData}
         downbeatsOnly={false}
         downbeatTimes={downbeatTimes}

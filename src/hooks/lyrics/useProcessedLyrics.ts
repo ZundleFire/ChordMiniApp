@@ -9,12 +9,16 @@ import type { LyricWordTiming } from '@/types/musicAiTypes';
 export interface BeatAlignedChordEvent {
   time: number;
   chord: string;
+  beatIndex?: number;
+  beatNum?: number;
 }
 
 interface ChordMarker {
   time: number;
   chord: string;
   position: number; // Character position in the line
+  beatIndex?: number;
+  beatNum?: number;
 }
 
 interface LyricLine {
@@ -356,7 +360,9 @@ export const useProcessedLyrics = ({
           return {
             time: chord.time,
             chord: chord.chord,
-            position: getChordPositionForLine(line, chord.time, wordTimings)
+            position: getChordPositionForLine(line, chord.time, wordTimings),
+            beatIndex: chord.beatIndex,
+            beatNum: chord.beatNum,
           };
         });
 

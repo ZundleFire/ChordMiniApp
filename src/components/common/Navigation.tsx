@@ -229,6 +229,12 @@ const Navigation: React.FC<NavigationProps> = ({ className = '', showStickySearc
           </NavbarMenuItem>
         )}
 
+        <NavbarMenuItem>
+          <div className="py-2">
+            <GoogleSignInButton />
+          </div>
+        </NavbarMenuItem>
+
         {navigationItems.map((item) => (
           <NavbarMenuItem key={item.href} suppressHydrationWarning>
             {item.isScroll ? (

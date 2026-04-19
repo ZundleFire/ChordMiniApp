@@ -47,6 +47,7 @@ interface LeadSheetProps {
   onFontSizeChange: (size: number) => void;
   darkMode?: boolean;
   chords?: ChordData[]; // Optional chord data from analysis results (beat-aligned events expected)
+  beatsPerMeasure?: number;
   segmentationData?: SegmentationResult | null; // Optional segmentation data for section labels and instrumental placeholders
   downbeatsOnly?: boolean;
   downbeatTimes?: number[];
@@ -63,6 +64,7 @@ const LeadSheetDisplay: React.FC<LeadSheetProps> = React.memo(({
   onFontSizeChange,
   darkMode = false,
   chords = [],
+  beatsPerMeasure = 4,
   segmentationData = null,
   downbeatsOnly = false,
   downbeatTimes = [],
@@ -223,6 +225,7 @@ const LeadSheetDisplay: React.FC<LeadSheetProps> = React.memo(({
             selectedLanguages={selectedLanguages}
             translatedLyrics={translatedLyrics}
             processedLines={processedAndMergedLyrics}
+            beatsPerMeasure={beatsPerMeasure}
             segmentationData={segmentationData}
             memoizedCharacterArrays={memoizedCharacterArrays}
             accidentalPreference={accidentalPreference}

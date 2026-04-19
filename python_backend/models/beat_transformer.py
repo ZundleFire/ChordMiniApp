@@ -32,11 +32,11 @@ try:
             collections.Mapping = collections.abc.Mapping
 
     # Fix numpy compatibility for madmom
-    if not hasattr(np, 'float'):
+    if 'float' not in np.__dict__:
         np.float = float
-    if not hasattr(np, 'int'):
+    if 'int' not in np.__dict__:
         np.int = int
-    if not hasattr(np, 'bool'):
+    if 'bool' not in np.__dict__:
         np.bool = bool
 
     from madmom.features.beats import DBNBeatTrackingProcessor
@@ -231,8 +231,6 @@ def is_beat_transformer_available():
         beat_transformer_path = os.path.join(os.path.dirname(__file__), "Beat-Transformer", "code")
         if beat_transformer_path not in sys.path:
             sys.path.append(beat_transformer_path)
-
-        from DilatedTransformer import Demixed_DilatedTransformerModel
 
         if DEBUG:
             print("Beat Transformer is available")

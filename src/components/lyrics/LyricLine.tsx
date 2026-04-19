@@ -51,6 +51,7 @@ interface LyricLineProps {
     isChordOnly?: boolean;
     isCondensed?: boolean;
   })[];
+  beatsPerMeasure: number;
   segmentationData?: SegmentationResult | null;
   memoizedCharacterArrays: {
     getCharArray: (text: string) => string[];
@@ -154,6 +155,7 @@ const LyricLineComponent: React.FC<LyricLineProps> = ({
   selectedLanguages,
   translatedLyrics,
   processedLines,
+  beatsPerMeasure,
   segmentationData,
   memoizedCharacterArrays,
   accidentalPreference
@@ -348,56 +350,94 @@ const LyricLineComponent: React.FC<LyricLineProps> = ({
       return null;
     }
 
+    type MeterChord = {
+      chord: string;
+      position: number;
+      beatIndex?: number;
+      beatNum?: number;
+    };
+
+    const meter = Math.max(2, Math.min(16, Math.round(beatsPerMeasure || 4)));
+
     const sorted = [...line.chords]
       .filter((c) => typeof c.position === 'number' && c.chord)
-      .sort((a, b) => a.position - b.position);
+      .sort((a, b) => a.time - b.time) as Array<typeof line.chords[number] & MeterChord>;
 
     if (!sorted.length) {
       return null;
     }
 
-    const placed: Array<{ start: number; end: number; label: string }> = [];
-    let cursor = 0;
-
-    for (const chord of sorted) {
-      const label = normalizeChordForDedup(chord.chord);
-      const preferredStart = Math.max(0, Math.floor(chord.position ?? 0));
-      const start = Math.max(preferredStart, cursor);
-      const end = start + Math.max(1, label.length) - 1;
-      placed.push({ start, end, label });
-      cursor = end + 2;
-    }
-
-    const minWidth = Math.max(
-      line.text.length,
-      placed.length ? placed[placed.length - 1].end + 1 : 0
-    );
-
-    const chordChars = Array.from({ length: minWidth }, () => ' ');
-    placed.forEach((item) => {
-      for (let i = 0; i < item.label.length; i++) {
-        const idx = item.start + i;
-        if (idx >= 0 && idx < chordChars.length) {
-          chordChars[idx] = item.label[i];
-        }
-      }
+    const tokens: Array<{ text: string; isChord: boolean; sourcePos?: number }> = [];
+    const meterChords: MeterChord[] = sorted.map((chord, idx) => {
+      const explicitBeatNum = (chord as MeterChord).beatNum;
+      const explicitBeatIndex = (chord as MeterChord).beatIndex;
+      const inferredBeatNum = explicitBeatNum ?? (typeof explicitBeatIndex === 'number' ? ((explicitBeatIndex % meter) + 1) : undefined);
+      return {
+        chord: normalizeChordForDedup(chord.chord),
+        position: Math.max(0, Math.floor(chord.position ?? 0)),
+        beatIndex: explicitBeatIndex,
+        beatNum: inferredBeatNum,
+      };
     });
 
-    // Add beat dots between chord changes using fixed slots for a compact lead-sheet feel.
-    for (let i = 0; i < placed.length; i++) {
-      const from = placed[i].end + 2;
-      const to = i < placed.length - 1 ? placed[i + 1].start - 1 : minWidth - 1;
-      for (let p = from; p <= to; p += 4) {
-        if (p >= 0 && p < chordChars.length && chordChars[p] === ' ') {
-          chordChars[p] = '.';
-        }
+    for (let i = 0; i < meterChords.length; i++) {
+      const current = meterChords[i];
+      const next = meterChords[i + 1];
+
+      tokens.push({ text: current.chord, isChord: true, sourcePos: current.position });
+
+      let beatsUntilNext = 1;
+      if (typeof current.beatIndex === 'number' && typeof next?.beatIndex === 'number' && next.beatIndex > current.beatIndex) {
+        beatsUntilNext = next.beatIndex - current.beatIndex;
+      } else if (!next && typeof current.beatNum === 'number') {
+        beatsUntilNext = Math.max(1, meter - ((current.beatNum - 1) % meter));
+      }
+
+      const dots = Math.max(0, beatsUntilNext - 1);
+      for (let d = 0; d < dots; d++) {
+        tokens.push({ text: '.', isChord: false });
       }
     }
 
-    const chordRow = chordChars.join('').replace(/\s+$/g, '');
-    const lyricRow = line.text.padEnd(chordChars.length, ' ').replace(/\s+$/g, '');
-    return { chordRow, lyricRow };
-  }, [line.chords, line.text]);
+    const placements: Array<{ start: number; sourcePos: number }> = [];
+    let chordRow = '';
+    let cursor = 0;
+    tokens.forEach((token, idx) => {
+      if (idx > 0) {
+        chordRow += ' ';
+        cursor += 1;
+      }
+      if (token.isChord && typeof token.sourcePos === 'number') {
+        placements.push({ start: cursor, sourcePos: token.sourcePos });
+      }
+      chordRow += token.text;
+      cursor += token.text.length;
+    });
+
+    if (!chordRow) {
+      return null;
+    }
+
+    const deltas = placements.map((p) => p.start - p.sourcePos).sort((a, b) => a - b);
+    let shift = deltas.length ? Math.round(deltas[Math.floor(deltas.length / 2)]) : 0;
+
+    if (shift < 0) {
+      chordRow = `${' '.repeat(Math.abs(shift))}${chordRow}`;
+      shift = 0;
+    }
+
+    const lyricStart = shift;
+    const lyricChars = Array.from({ length: Math.max(chordRow.length, lyricStart + line.text.length) }, () => ' ');
+    for (let i = 0; i < line.text.length; i++) {
+      lyricChars[lyricStart + i] = line.text[i];
+    }
+
+    const lyricRow = lyricChars.join('').replace(/\s+$/g, '');
+    return {
+      chordRow: chordRow.replace(/\s+$/g, ''),
+      lyricRow,
+    };
+  }, [line.chords, line.text, beatsPerMeasure]);
 
   if (beatGridRows) {
     return (
@@ -779,6 +819,7 @@ const areLyricLinePropsEqual = (prevProps: LyricLineProps, nextProps: LyricLineP
   if (!areSelectedLanguagesEqual(prevProps.selectedLanguages, nextProps.selectedLanguages)) return false;
   if (prevProps.translatedLyrics !== nextProps.translatedLyrics) return false;
   if (prevProps.processedLines !== nextProps.processedLines) return false;
+  if (prevProps.beatsPerMeasure !== nextProps.beatsPerMeasure) return false;
   if (prevProps.segmentationData !== nextProps.segmentationData) return false;
   if (prevProps.memoizedCharacterArrays !== nextProps.memoizedCharacterArrays) return false;
   return true;
