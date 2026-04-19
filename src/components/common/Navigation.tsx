@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import ThemeToggle from './ThemeToggle';
+import { GoogleSignInButton } from './GoogleSignInButton';
 
 import StickySearchBar from '@/components/common/StickySearchBar';
 import { Navbar, NavbarBrand, NavbarContent, NavbarItem, NavbarMenuToggle, NavbarMenu, NavbarMenuItem, Button } from '@heroui/react';
@@ -205,6 +206,10 @@ const Navigation: React.FC<NavigationProps> = ({ className = '', showStickySearc
           </NavbarItem>
         ))}
         
+
+        <NavbarItem>
+          <GoogleSignInButton />
+        </NavbarItem>
 
         <NavbarItem>
           <ThemeToggle />
