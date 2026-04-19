@@ -13,6 +13,8 @@ services:
   # Frontend - Next.js Application
   frontend:
     platform: linux/amd64
+    env_file:
+      - .env.docker
     build:
       context: .
       dockerfile: Dockerfile
@@ -34,7 +36,7 @@ services:
 
       # API Configuration (Public)
       - NEXT_PUBLIC_YOUTUBE_API_KEY=${NEXT_PUBLIC_YOUTUBE_API_KEY}
-      - NEXT_PUBLIC_PYTHON_API_URL=${NEXT_PUBLIC_PYTHON_API_URL:-http://backend:8080}
+      - NEXT_PUBLIC_PYTHON_API_URL=${PYTHON_API_URL:-http://backend:8080}
       - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3001}
 
       # Feature Flags (Public)
@@ -68,6 +70,8 @@ services:
   # Backend - Python Flask ML Service
   backend:
     platform: linux/amd64
+    env_file:
+      - .env.docker
     build:
       context: ./python_backend
       dockerfile: Dockerfile
