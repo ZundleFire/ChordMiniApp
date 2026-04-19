@@ -1,9 +1,9 @@
 # ChordMiniApp Production Docker Compose Configuration
-# Uses pre-built images from Docker Hub
+# Builds images from source for x86 compatibility
 #
 # Quick Start:
 #   1. Copy .env.docker.example to .env.docker and configure your values
-#   2. Run: docker-compose -f docker-compose.prod.yml --env-file .env.docker up -d
+#   2. Run: docker-compose -f docker-compose.prod.yml --env-file .env.docker up -d --build
 #   3. Access: http://localhost:3001
 #
 # Stop:
@@ -14,7 +14,9 @@ version: '3.8'
 services:
   # Frontend - Next.js Application
   frontend:
-    image: ptnghia/chordmini-frontend:v0.5.3
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: chordmini-frontend
     ports:
       - "3001:3000"
@@ -67,7 +69,9 @@ services:
 
   # Backend - Python Flask ML Service
   backend:
-    image: ptnghia/chordmini-backend:v0.5.3
+    build:
+      context: ./python_backend
+      dockerfile: Dockerfile
     container_name: chordmini-backend
     ports:
       - "8080:8080"
