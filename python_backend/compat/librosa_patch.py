@@ -11,6 +11,10 @@ import numpy as np
 from utils.logging import log_debug, is_debug_enabled
 
 
+def _should_suppress_patch_warning(error: Exception) -> bool:
+    return isinstance(error, ModuleNotFoundError) and getattr(error, 'name', None) == 'pkg_resources'
+
+
 def patch_librosa_beat_tracker():
     """
     Directly patch the __beat_tracker and __trim_beats functions in librosa.beat
@@ -42,7 +46,7 @@ def patch_librosa_beat_tracker():
             return True
 
     except Exception as e:
-        if is_debug_enabled():
+        if is_debug_enabled() and not _should_suppress_patch_warning(e):
             warnings.warn(f"Failed to patch librosa.beat.__trim_beats: {e}")
         return False
 
@@ -93,5 +97,6 @@ def monkey_patch_beat_track():
         return True
 
     except Exception as e:
-        warnings.warn(f"Failed to monkey-patch librosa.beat.beat_track: {e}")
+        if not _should_suppress_patch_warning(e):
+            warnings.warn(f"Failed to monkey-patch librosa.beat.beat_track: {e}")
         return False

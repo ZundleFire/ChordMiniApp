@@ -48,14 +48,13 @@ def init_limiter(app: Flask, config) -> None:
     """
     # Configure rate limiting storage
     if config.REDIS_URL:
-        limiter.init_app(
-            app,
-            storage_uri=config.REDIS_URL
-        )
+        app.config['RATELIMIT_STORAGE_URI'] = config.REDIS_URL
+        limiter.init_app(app)
         app.logger.info(f"Rate limiting configured with Redis: {config.REDIS_URL}")
     else:
+        app.config['RATELIMIT_STORAGE_URI'] = 'memory://'
         limiter.init_app(app)
-        app.logger.info("Rate limiting configured with in-memory storage")
+        app.logger.info("Rate limiting configured with explicit in-memory storage")
 
 
 def init_logging(app: Flask, config) -> None:

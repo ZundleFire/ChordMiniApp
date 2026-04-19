@@ -31,19 +31,19 @@ def patch_numpy_compatibility():
     msgs = []
 
     # Restore deprecated numpy attributes if they don't exist
-    if not hasattr(np, 'float'):
+    if 'float' not in np.__dict__:
         np.float = np.float64
         msgs.append("Applied numpy patch: np.float -> np.float64")
 
-    if not hasattr(np, 'int'):
+    if 'int' not in np.__dict__:
         np.int = np.int_
         msgs.append("Applied numpy patch: np.int -> np.int_")
 
-    if not hasattr(np, 'complex'):
+    if 'complex' not in np.__dict__:
         np.complex = np.complex128
         msgs.append("Applied numpy patch: np.complex -> np.complex128")
 
-    if not hasattr(np, 'bool'):
+    if 'bool' not in np.__dict__:
         np.bool = np.bool_
         msgs.append("Applied numpy patch: np.bool -> np.bool_")
 
