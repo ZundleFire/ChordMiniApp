@@ -48,6 +48,8 @@ const Navigation: React.FC<NavigationProps> = ({ className = '', showStickySearc
     { href: '/', label: 'Home' },
     { href: '/#features', label: 'Features', isScroll: true },
     { href: '/analyze', label: 'Analyze Audio' },
+    { href: '/favorites', label: 'Favorites' },
+    { href: '/playlists', label: 'Playlists' },
     { href: '/docs', label: 'API Docs' },
     { href: '/settings', label: 'Settings' },
   ];
