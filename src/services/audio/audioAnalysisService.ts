@@ -128,6 +128,37 @@ function isLikelyAudioBuffer(buffer: ArrayBuffer): boolean {
 }
 
 async function fetchFileFromUrl(url: string, videoId?: string): Promise<File> {
+  // Blob URLs are browser-local object references and must not be proxied through /api/proxy-audio.
+  if (url.startsWith('blob:')) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch local blob audio: ${response.status} ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    if (blob.size === 0) {
+      throw new Error('Local blob audio is empty or corrupted');
+    }
+
+    const rawBuffer = await blob.arrayBuffer();
+    if (!isLikelyAudioBuffer(rawBuffer)) {
+      throw new Error('Local blob payload is not a valid audio container');
+    }
+
+    const normalizedType = blob.type || 'audio/mpeg';
+    const extension = normalizedType.includes('wav')
+      ? 'wav'
+      : normalizedType.includes('ogg')
+        ? 'ogg'
+        : normalizedType.includes('webm')
+          ? 'webm'
+          : normalizedType.includes('mp4') || normalizedType.includes('m4a')
+            ? 'm4a'
+            : 'mp3';
+
+    return new File([rawBuffer], `audio.${extension}`, { type: normalizedType });
+  }
+
   // PRIORITY FIX: Check for cached complete audio file first (from parallel pipeline)
   if (videoId) {
     try {

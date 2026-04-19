@@ -17,6 +17,32 @@ export async function getAudioDurationFromUrl(audioUrl: string, videoId?: string
   try {
     // console.log(`🎵 Detecting duration for audio URL: ${audioUrl}`);
 
+    // Blob URLs are local browser object references and cannot be proxied server-side.
+    if (audioUrl.startsWith('blob:')) {
+      if (typeof Audio === 'undefined') {
+        throw new Error('Blob URL duration detection is only available in browser environments');
+      }
+
+      return await new Promise<number>((resolve, reject) => {
+        const audio = new Audio();
+        audio.preload = 'metadata';
+
+        audio.addEventListener('loadedmetadata', () => {
+          if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+            resolve(audio.duration);
+          } else {
+            reject(new Error('Invalid duration detected from blob URL'));
+          }
+        });
+
+        audio.addEventListener('error', () => {
+          reject(new Error('Failed to load blob URL for duration detection'));
+        });
+
+        audio.src = audioUrl;
+      });
+    }
+
     // Use our dedicated duration detection API route
     const response = await fetch('/api/audio-duration', {
       method: 'POST',
@@ -111,6 +137,18 @@ export async function getAudioDurationFromFile(audioFile: File): Promise<number>
  */
 async function estimateDurationFromFileSize(audioUrl: string, videoId?: string): Promise<number> {
   try {
+    if (audioUrl.startsWith('blob:')) {
+      const blobResponse = await fetch(audioUrl);
+      if (!blobResponse.ok) {
+        throw new Error(`Failed to get local blob info: ${blobResponse.status}`);
+      }
+
+      const blob = await blobResponse.blob();
+      const fileSizeBytes = blob.size;
+      const estimatedDuration = fileSizeBytes / 16000;
+      return Math.min(estimatedDuration, 1800);
+    }
+
     const headUrl = buildAudioProxyUrl(audioUrl, { videoId });
     const response = await fetch(headUrl, { method: 'HEAD' });
 
