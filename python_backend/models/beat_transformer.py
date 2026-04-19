@@ -188,8 +188,18 @@ class BeatTransformerHandler:
 import sys
 import os
 beat_transformer_path = os.path.join(os.path.dirname(__file__), "Beat-Transformer", "code")
-sys.path.append(beat_transformer_path)
-from DilatedTransformer import Demixed_DilatedTransformerModel
+if beat_transformer_path not in sys.path:
+    sys.path.append(beat_transformer_path)
+
+Demixed_DilatedTransformerModel = None
+BEAT_TRANSFORMER_IMPORT_ERROR = None
+
+try:
+    from DilatedTransformer import Demixed_DilatedTransformerModel
+except Exception as e:
+    BEAT_TRANSFORMER_IMPORT_ERROR = e
+    if DEBUG:
+        print(f"Beat Transformer model import unavailable: {e}")
 
 def is_beat_transformer_available():
     """
@@ -202,6 +212,11 @@ def is_beat_transformer_available():
     try:
         # Check if PyTorch is available
         import torch
+
+        if Demixed_DilatedTransformerModel is None:
+            if DEBUG:
+                print(f"Beat Transformer model import failed: {BEAT_TRANSFORMER_IMPORT_ERROR}")
+            return False
 
         # Check if the model checkpoint exists
         BEAT_TRANSFORMER_DIR = Path(__file__).parent / "Beat-Transformer"
@@ -259,6 +274,13 @@ def run_beat_tracking_wrapper(audio_file):
 class BeatTransformerDetector:
     def __init__(self, checkpoint_path=None):
         """Initialize the Beat Transformer detector with a checkpoint file"""
+
+        if Demixed_DilatedTransformerModel is None:
+            raise RuntimeError(
+                "Beat Transformer model files are unavailable. "
+                f"Expected checkout under {Path(__file__).parent / 'Beat-Transformer'}; "
+                f"import error: {BEAT_TRANSFORMER_IMPORT_ERROR}"
+            )
 
         # Import DeviceManager for sophisticated device detection
         try:

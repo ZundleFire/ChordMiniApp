@@ -48,8 +48,9 @@ torchaudio
 
 # ============================================================================
 # Spleeter - Real 5-stems Audio Separation (GPU Accelerated)
-# ============================================================================
-spleeter==2.3.2
+# NOTE: spleeter==2.3.2 has overly strict deps (librosa<0.9, httpx<0.20).
+#       Install it separately with --no-deps (see install.bat / Dockerfile).
+# spleeter==2.3.2   <-- installed via install.bat / docker RUN
 norbert==0.2.1
 ffmpeg-python==0.2.0
 
@@ -90,8 +91,8 @@ pumpp==0.6.0
 # update h2 to 4.2.0
 # ============================================================================
 requests==2.31.0
-httpx==0.28.1
-h2==4.1.0  # Required for Spleeter model downloads via HTTP/2
+httpx==0.19.0
+h2==3.2.0  # Required for Spleeter model downloads via HTTP/2 (constrained by spleeter 2.3.2)
 Pillow==10.0.0
 lyricsgenius==3.6.2
 PyYAML==6.0.2

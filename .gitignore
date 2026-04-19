@@ -160,6 +160,10 @@ cache/
 **/cache/
 *.cache
 
+# Keep source cache services tracked
+!src/services/cache/
+!src/services/cache/*.ts
+
 # Temporary audio files
 /temp/
 /tmp/
