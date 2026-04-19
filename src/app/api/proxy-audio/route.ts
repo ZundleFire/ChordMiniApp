@@ -303,6 +303,40 @@ export async function GET(request: NextRequest) {
     if (expectedSize > 0 && audioBuffer.byteLength < expectedSize) {
       console.error(`❌ Incomplete download: got ${audioBuffer.byteLength} bytes, expected ${expectedSize} bytes`);
       console.error(`❌ Download completion: ${(audioBuffer.byteLength / expectedSize * 100).toFixed(1)}%`);
+
+      // Retry instead of returning truncated payloads that later fail audio decoding.
+      const retryResult = await retryAudioDownload(fetchUrl, {
+        maxAttempts: 3,
+        timeoutMs: 120000,
+      });
+
+      if (retryResult.success && retryResult.buffer && retryResult.response) {
+        const retriedExpectedSize = parseInt(retryResult.response.headers.get('content-length') || '0', 10);
+        if (retriedExpectedSize === 0 || retryResult.buffer.byteLength >= retriedExpectedSize) {
+          console.log(`✅ Retry recovered complete audio payload after incomplete initial download`);
+          return new NextResponse(retryResult.buffer, {
+            status: 200,
+            headers: {
+              'Content-Type': retryResult.response.headers.get('Content-Type') || 'audio/mpeg',
+              'Content-Length': retryResult.buffer.byteLength.toString(),
+              'Cache-Control': 'public, max-age=3600',
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
+        }
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Incomplete audio download from upstream source',
+          details: {
+            expectedSize,
+            receivedSize: audioBuffer.byteLength,
+            sourceUrl: fetchUrl,
+          },
+        },
+        { status: 502 }
+      );
     } else if (expectedSize > 0 && audioBuffer.byteLength === expectedSize) {
       console.log(`✅ Complete download: ${audioBuffer.byteLength} bytes match expected size`);
     }

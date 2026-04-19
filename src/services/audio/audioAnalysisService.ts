@@ -127,6 +127,46 @@ function isLikelyAudioBuffer(buffer: ArrayBuffer): boolean {
   return false;
 }
 
+async function assertFileDecodable(file: File): Promise<void> {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined' || typeof URL?.createObjectURL !== 'function') {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    const objectUrl = URL.createObjectURL(file);
+
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl);
+      audio.src = '';
+    };
+
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('Audio decode validation timed out'));
+    }, 8000);
+
+    audio.addEventListener('loadedmetadata', () => {
+      window.clearTimeout(timeout);
+      cleanup();
+      if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+        resolve();
+      } else {
+        reject(new Error('Audio metadata is invalid'));
+      }
+    }, { once: true });
+
+    audio.addEventListener('error', () => {
+      window.clearTimeout(timeout);
+      cleanup();
+      reject(new Error('Audio metadata decode failed'));
+    }, { once: true });
+
+    audio.src = objectUrl;
+  });
+}
+
 async function fetchFileFromUrl(url: string, videoId?: string): Promise<File> {
   // Blob URLs are browser-local object references and must not be proxied through /api/proxy-audio.
   if (url.startsWith('blob:')) {
@@ -156,7 +196,9 @@ async function fetchFileFromUrl(url: string, videoId?: string): Promise<File> {
             ? 'm4a'
             : 'mp3';
 
-    return new File([rawBuffer], `audio.${extension}`, { type: normalizedType });
+    const file = new File([rawBuffer], `audio.${extension}`, { type: normalizedType });
+    await assertFileDecodable(file);
+    return file;
   }
 
   // PRIORITY FIX: Check for cached complete audio file first (from parallel pipeline)
@@ -176,7 +218,9 @@ async function fetchFileFromUrl(url: string, videoId?: string): Promise<File> {
 
         // Convert Blob to File with proper name and type
         const fileName = `${videoId}.${cachedFile.type.includes('mp4') ? 'm4a' : 'mp3'}`;
-        return new File([cachedBuffer], fileName, { type: cachedFile.type || 'audio/mpeg' });
+        const file = new File([cachedBuffer], fileName, { type: cachedFile.type || 'audio/mpeg' });
+        await assertFileDecodable(file);
+        return file;
       } else {
         console.log(`⚠️ No cached file found for ${videoId}, proceeding with URL fetch`);
       }
@@ -226,7 +270,9 @@ async function fetchFileFromUrl(url: string, videoId?: string): Promise<File> {
           ? 'm4a'
           : 'mp3';
 
-  return new File([rawBuffer], `audio.${extension}`, { type: normalizedType });
+  const file = new File([rawBuffer], `audio.${extension}`, { type: normalizedType });
+  await assertFileDecodable(file);
+  return file;
 }
 
 async function handleBlobPath(
