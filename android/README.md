@@ -32,7 +32,49 @@ Advanced music analysis platform for Android with AI-powered chord recognition, 
 - **Coil**: Image loading
 - **OkHttp + Gson**: Networking
 - **Kotlin Coroutines**: Async/reactive programming
+## Quick Start
 
+### Prerequisites
+- **Java 17+** - Download from https://adoptium.net/
+- **Android SDK** - Install via Android Studio
+- **Gradle 8.7+** - Included with wrapper
+
+### Build Commands
+
+```bash
+# Navigate to android directory
+cd android/
+
+# Build debug APK (for testing)
+./gradlew assembleDebug      # Linux/Mac
+gradlew.bat assembleDebug    # Windows
+
+# Build release APK (for production)
+./gradlew assembleRelease    # Linux/Mac
+gradlew.bat assembleRelease  # Windows
+
+# Install to device
+./gradlew installDebug       # Linux/Mac
+gradlew.bat installDebug     # Windows
+
+# Run tests
+./gradlew test
+```
+
+**Easier way - Use provided scripts:**
+```bash
+# Linux/Mac
+./build.sh debug             # Build debug APK
+./build.sh release           # Build release APK
+./build.sh install           # Build and install
+
+# Windows (PowerShell)
+.\build.bat debug            # Build debug APK
+.\build.bat release          # Build release APK
+.\build.bat install          # Build and install
+```
+
+For detailed setup instructions, see [BUILD_GUIDE.md](BUILD_GUIDE.md).
 ## Project Structure
 
 ```
