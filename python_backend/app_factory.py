@@ -79,7 +79,7 @@ def register_blueprints(app: Flask, config) -> None:
     from blueprints.beats import beats_bp
     from blueprints.chords import chords_bp
     from blueprints.lyrics import lyrics_bp
-    from blueprints.songformer import songformer_bp
+    # from blueprints.songformer import songformer_bp  # DISABLED: LFS quota exceeded
     from blueprints.debug import debug_bp
 
     # Register blueprints
@@ -88,7 +88,7 @@ def register_blueprints(app: Flask, config) -> None:
     app.register_blueprint(beats_bp)
     app.register_blueprint(chords_bp)
     app.register_blueprint(lyrics_bp)
-    app.register_blueprint(songformer_bp)
+    # app.register_blueprint(songformer_bp)  # DISABLED: LFS quota exceeded
 
     # Register debug blueprint only in non-production mode
     if not config.PRODUCTION_MODE:

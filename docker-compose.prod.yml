@@ -4,7 +4,7 @@
 # Quick Start:
 #   1. Copy .env.docker.example to .env.docker and configure your values
 #   2. Run: docker-compose -f docker-compose.prod.yml --env-file .env.docker up -d
-#   3. Access: http://localhost:3000
+#   3. Access: http://localhost:3001
 #
 # Stop:
 #   docker-compose -f docker-compose.prod.yml down
@@ -17,7 +17,7 @@ services:
     image: ptnghia/chordmini-frontend:v0.5.3
     container_name: chordmini-frontend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       # System Configuration
       - NODE_ENV=${NODE_ENV:-production}
@@ -50,6 +50,9 @@ services:
       # Development Flags (Server-only)
       - USE_MOCK_MUSIC_AI=${USE_MOCK_MUSIC_AI:-false}
       - USE_FIREBASE_EMULATOR=${USE_FIREBASE_EMULATOR:-false}
+    volumes:
+      # Audio cache for caching downloaded audio files
+      - ./audio-cache:/app/audio_cache
     depends_on:
       - backend
     networks:
@@ -80,6 +83,8 @@ services:
     volumes:
       # Optional: Mount cache directory for model caching
       - backend-cache:/tmp/model_cache
+      # Audio cache for caching downloaded audio files
+      - ./audio-cache:/app/audio_cache
     networks:
       - chordmini-network
     restart: unless-stopped
