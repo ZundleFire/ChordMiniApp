@@ -61,6 +61,14 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
   const isPlayerReady = readyVideoId === videoId;
 
+  // Fallback: force the player visible after 8s in case the YouTube JS API
+  // postMessage handshake never completes (e.g. HTTP origin, Firefox partitioning).
+  useEffect(() => {
+    if (isPlayerReady) return;
+    const timeout = setTimeout(() => setReadyVideoId(videoId), 8000);
+    return () => clearTimeout(timeout);
+  }, [videoId, isPlayerReady]);
+
   // Sync playback rate with YouTube player
   useEffect(() => {
     if (playerRef.current) {
