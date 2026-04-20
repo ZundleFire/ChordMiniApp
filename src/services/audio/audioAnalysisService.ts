@@ -150,11 +150,7 @@ async function assertFileDecodable(file: File): Promise<void> {
     audio.addEventListener('loadedmetadata', () => {
       window.clearTimeout(timeout);
       cleanup();
-      if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
-        resolve();
-      } else {
-        reject(new Error('Audio metadata is invalid'));
-      }
+      resolve();
     }, { once: true });
 
     audio.addEventListener('error', () => {
