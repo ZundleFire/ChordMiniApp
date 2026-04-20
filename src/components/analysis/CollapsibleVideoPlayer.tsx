@@ -59,6 +59,7 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   const [readyVideoId, setReadyVideoId] = useState<string | null>(null);
   const [isEmbedUnavailable, setIsEmbedUnavailable] = useState(false);
   const [useNativeIframeFallback, setUseNativeIframeFallback] = useState(false);
+  const [allowInlineOnInsecureOrigin, setAllowInlineOnInsecureOrigin] = useState(false);
   const playerRef = useRef<ReactPlayer>(null);
   const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
   const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}`;
@@ -66,6 +67,10 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   const youtubeOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:'
     ? window.location.origin
     : undefined;
+  const isInsecureNonLocalOrigin = typeof window !== 'undefined'
+    && window.location.protocol !== 'https:'
+    && window.location.hostname !== 'localhost'
+    && window.location.hostname !== '127.0.0.1';
   const isPlayerReady = readyVideoId === videoId;
 
   // Reset player readiness when the video changes.
@@ -73,15 +78,25 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
     setReadyVideoId(null);
     setIsEmbedUnavailable(false);
     setUseNativeIframeFallback(false);
+    setAllowInlineOnInsecureOrigin(false);
   }, [videoId]);
 
-  // Fallback: force the player visible after 8s in case the YouTube JS API
-  // postMessage handshake never completes (e.g. HTTP origin, Firefox partitioning).
+  // On insecure non-local origins, YouTube often rejects embed identity checks (Error 153).
+  // Default to explicit fallback UI to avoid a broken inline player loop.
   useEffect(() => {
-    if (isPlayerReady) return;
+    if (isInsecureNonLocalOrigin && !allowInlineOnInsecureOrigin) {
+      setIsEmbedUnavailable(true);
+      setReadyVideoId(videoId);
+    }
+  }, [isInsecureNonLocalOrigin, allowInlineOnInsecureOrigin, videoId]);
+
+  // Fallback: force the player visible after 8s in case the YouTube JS API
+  // postMessage handshake never completes.
+  useEffect(() => {
+    if (isPlayerReady || isEmbedUnavailable) return;
     const timeout = setTimeout(() => setReadyVideoId(videoId), 8000);
     return () => clearTimeout(timeout);
-  }, [videoId, isPlayerReady]);
+  }, [videoId, isPlayerReady, isEmbedUnavailable]);
 
   // Sync playback rate with YouTube player
   useEffect(() => {
@@ -342,11 +357,14 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
                   type="button"
                   onClick={() => {
                     setIsEmbedUnavailable(false);
+                    if (isInsecureNonLocalOrigin) {
+                      setAllowInlineOnInsecureOrigin(true);
+                    }
                     setReadyVideoId(null);
                   }}
                   className="rounded-full border border-white/35 px-4 py-2 text-sm font-semibold text-white/90 transition-colors hover:bg-white/10"
                 >
-                  Retry Embed
+                  {isInsecureNonLocalOrigin ? 'Try Inline Anyway' : 'Retry Embed'}
                 </button>
               </div>
             </div>
