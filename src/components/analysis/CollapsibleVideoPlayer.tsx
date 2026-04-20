@@ -58,9 +58,11 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   const [isCollapsed, setIsCollapsed] = useState(() => getInitialIsMobile());
   const [readyVideoId, setReadyVideoId] = useState<string | null>(null);
   const [isEmbedUnavailable, setIsEmbedUnavailable] = useState(false);
+  const [useNativeIframeFallback, setUseNativeIframeFallback] = useState(false);
   const playerRef = useRef<ReactPlayer>(null);
   const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
   const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const youtubeEmbedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=0&mute=0&controls=1&playsinline=1&rel=0&modestbranding=1`;
   const youtubeOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:'
     ? window.location.origin
     : undefined;
@@ -70,6 +72,7 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   useEffect(() => {
     setReadyVideoId(null);
     setIsEmbedUnavailable(false);
+    setUseNativeIframeFallback(false);
   }, [videoId]);
 
   // Fallback: force the player visible after 8s in case the YouTube JS API
@@ -116,6 +119,7 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
     playerRef.current = player;
     setReadyVideoId(videoId);
     setIsEmbedUnavailable(false);
+    setUseNativeIframeFallback(false);
 
     // Try to get the internal YouTube player instance
     try {
@@ -179,7 +183,7 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   };
 
   const handleError = () => {
-    setIsEmbedUnavailable(true);
+    setUseNativeIframeFallback(true);
     setReadyVideoId(videoId);
   };
 
@@ -346,6 +350,27 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
                 </button>
               </div>
             </div>
+          ) : useNativeIframeFallback ? (
+            <div className="relative h-full w-full">
+              <iframe
+                title="YouTube video player"
+                src={youtubeEmbedUrl}
+                className="h-full w-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="origin"
+                allowFullScreen
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
+                <a
+                  href={youtubeWatchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="pointer-events-auto rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white ring-1 ring-white/20 transition-colors hover:bg-black/80"
+                >
+                  Open on YouTube
+                </a>
+              </div>
+            </div>
           ) : (
             <DynamicReactPlayer
               ref={playerRef}
@@ -363,7 +388,13 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
               onProgress={onProgress}
               progressInterval={250}
               muted={false}
-              onError={handleError}
+              onError={() => {
+                if (useNativeIframeFallback) {
+                  setIsEmbedUnavailable(true);
+                } else {
+                  handleError();
+                }
+              }}
               config={{
                 playerVars: {
                   showinfo: 1,

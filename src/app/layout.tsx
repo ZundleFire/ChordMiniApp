@@ -148,6 +148,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${robotoMono.variable} ${dmSans.variable} ${varelaRound.variable}`} suppressHydrationWarning>
       <head>
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
         {/* Blocking script: apply dark class BEFORE first paint to prevent theme flash */}
         <script
           dangerouslySetInnerHTML={{
