@@ -37,7 +37,7 @@ export class MetronomeService {
   private isEnabled = false;
   private volume = 1.0;
   private volumeBoost = 3.0;
-  private soundStyle: MetronomeSoundStyle = 'librosa_short';
+  private soundStyle: MetronomeSoundStyle = 'traditional';
   private trackMode: MetronomeTrackMode = 'metronome';
   private clickDuration = 0.06;
   private metronomeTrack: AudioBuffer | null = null;

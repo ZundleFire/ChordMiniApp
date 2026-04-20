@@ -139,7 +139,8 @@ async function assertFileDecodable(file: File): Promise<void> {
 
     const cleanup = () => {
       URL.revokeObjectURL(objectUrl);
-      audio.src = '';
+      audio.removeAttribute('src');
+      audio.load();
     };
 
     const timeout = window.setTimeout(() => {
