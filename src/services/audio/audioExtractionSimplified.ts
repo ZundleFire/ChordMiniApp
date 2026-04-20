@@ -950,12 +950,18 @@ export class AudioExtractionServiceSimplified {
         if (!extractionResult.success) {
           console.log(`⚠️ yt-mp3-go low quality also failed: ${extractionResult.error}`);
 
-          // No more fallbacks available
+          // Final fallback: ytdown.io compatibility path
+          console.log('🔄 Falling back to ytdown.io compatibility service...');
+          const ytdownFallbackResult = await this.extractAudioWithYtdownIo(videoMetadata, forceRedownload);
+          if (ytdownFallbackResult.success) {
+            console.log('✅ ytdown.io fallback succeeded after yt-mp3-go failures');
+            return ytdownFallbackResult;
+          }
 
-          // All methods failed
+          // All extraction methods failed
           return {
             success: false,
-            error: `All extraction methods failed. yt-mp3-go: ${extractionResult.error}. QuickTube also failed.`
+            error: `All extraction methods failed. yt-mp3-go: ${extractionResult.error}. ytdown.io: ${ytdownFallbackResult.error || 'fallback failed'}.`
           };
         } else {
           console.log('✅ yt-mp3-go low quality succeeded');
