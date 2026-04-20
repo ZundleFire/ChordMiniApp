@@ -57,15 +57,25 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   const [isMobile, setIsMobile] = useState(getInitialIsMobile);
   const [isCollapsed, setIsCollapsed] = useState(() => getInitialIsMobile());
   const [readyVideoId, setReadyVideoId] = useState<string | null>(null);
+  const [useIframeFallback, setUseIframeFallback] = useState(false);
   const playerRef = useRef<ReactPlayer>(null);
   const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
   const isPlayerReady = readyVideoId === videoId;
+
+  // Reset player readiness when the video changes.
+  useEffect(() => {
+    setReadyVideoId(null);
+    setUseIframeFallback(false);
+  }, [videoId]);
 
   // Fallback: force the player visible after 8s in case the YouTube JS API
   // postMessage handshake never completes (e.g. HTTP origin, Firefox partitioning).
   useEffect(() => {
     if (isPlayerReady) return;
-    const timeout = setTimeout(() => setReadyVideoId(videoId), 8000);
+    const timeout = setTimeout(() => {
+      setUseIframeFallback(true);
+      setReadyVideoId(videoId);
+    }, 8000);
     return () => clearTimeout(timeout);
   }, [videoId, isPlayerReady]);
 
@@ -103,6 +113,7 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   // Handle ReactPlayer ready event and expose internal YouTube player
   const handleReady = (player: ReactPlayer) => {
     playerRef.current = player;
+    setUseIframeFallback(false);
     setReadyVideoId(videoId);
 
     // Try to get the internal YouTube player instance
@@ -302,29 +313,40 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
         </div>
 
         <div className={`absolute inset-0 transition-opacity duration-300 ${isPlayerReady ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-          <DynamicReactPlayer
-            ref={playerRef}
-            url={`https://www.youtube.com/watch?v=${videoId}`}
-            width="100%"
-            height="100%"
-            controls={true}
-            playing={isPlaying}
-            playbackRate={playbackRate}
-            onReady={handleReady}
-            onPlay={onPlay}
-            onPause={onPause}
-            onEnded={onEnded}
+          {useIframeFallback ? (
+            <iframe
+              title="YouTube video player"
+              src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&mute=0&controls=1&playsinline=1&rel=0&modestbranding=1`}
+              className="h-full w-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          ) : (
+            <DynamicReactPlayer
+              ref={playerRef}
+              url={`https://www.youtube.com/watch?v=${videoId}`}
+              width="100%"
+              height="100%"
+              controls={true}
+              playing={isPlaying}
+              playbackRate={playbackRate}
+              onReady={handleReady}
+              onPlay={onPlay}
+              onPause={onPause}
+              onEnded={onEnded}
 
-            onProgress={onProgress}
-            progressInterval={250}
-            muted={false}
-            config={{
-              playerVars: {
-                showinfo: 1,
-                origin: typeof window !== 'undefined' ? window.location.origin : undefined
-              }
-            }}
-          />
+              onProgress={onProgress}
+              progressInterval={250}
+              muted={false}
+              config={{
+                playerVars: {
+                  showinfo: 1,
+                  origin: typeof window !== 'undefined' ? window.location.origin : undefined
+                }
+              }}
+            />
+          )}
         </div>
       </div>
     </div>
