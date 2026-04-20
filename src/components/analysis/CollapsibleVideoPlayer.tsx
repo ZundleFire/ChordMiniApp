@@ -57,13 +57,19 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   const [isMobile, setIsMobile] = useState(getInitialIsMobile);
   const [isCollapsed, setIsCollapsed] = useState(() => getInitialIsMobile());
   const [readyVideoId, setReadyVideoId] = useState<string | null>(null);
+  const [isEmbedUnavailable, setIsEmbedUnavailable] = useState(false);
   const playerRef = useRef<ReactPlayer>(null);
   const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const youtubeOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:'
+    ? window.location.origin
+    : undefined;
   const isPlayerReady = readyVideoId === videoId;
 
   // Reset player readiness when the video changes.
   useEffect(() => {
     setReadyVideoId(null);
+    setIsEmbedUnavailable(false);
   }, [videoId]);
 
   // Fallback: force the player visible after 8s in case the YouTube JS API
@@ -109,6 +115,7 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
   const handleReady = (player: ReactPlayer) => {
     playerRef.current = player;
     setReadyVideoId(videoId);
+    setIsEmbedUnavailable(false);
 
     // Try to get the internal YouTube player instance
     try {
@@ -171,6 +178,11 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
     }
   };
 
+  const handleError = () => {
+    setIsEmbedUnavailable(true);
+    setReadyVideoId(videoId);
+  };
+
   // Collapsed mobile view - enhanced bar with video frame
   if (isMobile && isCollapsed) {
     return (
@@ -211,9 +223,10 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
                     controls: 0,
                     modestbranding: 1,
                     rel: 0,
-                    origin: typeof window !== 'undefined' ? window.location.origin : undefined
+                    origin: youtubeOrigin
                   }
                 }}
+                onError={handleError}
               />
             </div>
 
@@ -307,29 +320,58 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
         </div>
 
         <div className={`absolute inset-0 transition-opacity duration-300 ${isPlayerReady ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-          <DynamicReactPlayer
-            ref={playerRef}
-            url={`https://www.youtube.com/watch?v=${videoId}`}
-            width="100%"
-            height="100%"
-            controls={true}
-            playing={isPlaying}
-            playbackRate={playbackRate}
-            onReady={handleReady}
-            onPlay={onPlay}
-            onPause={onPause}
-            onEnded={onEnded}
+          {isEmbedUnavailable ? (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-slate-950/88 p-6 text-center text-white">
+              <p className="max-w-md text-sm text-white/85">
+                YouTube blocked embedded playback for this session. Open the video directly on YouTube to continue.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href={youtubeWatchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-500"
+                >
+                  Open on YouTube
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEmbedUnavailable(false);
+                    setReadyVideoId(null);
+                  }}
+                  className="rounded-full border border-white/35 px-4 py-2 text-sm font-semibold text-white/90 transition-colors hover:bg-white/10"
+                >
+                  Retry Embed
+                </button>
+              </div>
+            </div>
+          ) : (
+            <DynamicReactPlayer
+              ref={playerRef}
+              url={youtubeWatchUrl}
+              width="100%"
+              height="100%"
+              controls={true}
+              playing={isPlaying}
+              playbackRate={playbackRate}
+              onReady={handleReady}
+              onPlay={onPlay}
+              onPause={onPause}
+              onEnded={onEnded}
 
-            onProgress={onProgress}
-            progressInterval={250}
-            muted={false}
-            config={{
-              playerVars: {
-                showinfo: 1,
-                origin: typeof window !== 'undefined' ? window.location.origin : undefined
-              }
-            }}
-          />
+              onProgress={onProgress}
+              progressInterval={250}
+              muted={false}
+              onError={handleError}
+              config={{
+                playerVars: {
+                  showinfo: 1,
+                  origin: youtubeOrigin
+                }
+              }}
+            />
+          )}
         </div>
       </div>
     </div>
