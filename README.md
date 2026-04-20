@@ -223,6 +223,37 @@ ls -la python_backend/models/ChordMini/
    docker compose -f docker-compose.prod.yml down
    ```
 
+### Optional: HTTPS Reverse Proxy (Caddy) + Cloudflare Tunnel
+
+For YouTube embed reliability on non-localhost deployments, run the app behind HTTPS.
+
+1. **Set `.env.docker` values**
+   ```bash
+   HTTPS_PROXY_HTTP_PORT=3080
+   HTTPS_PROXY_HTTPS_PORT=3443
+   CLOUDFLARE_TUNNEL_TOKEN=your_cloudflare_tunnel_token
+   ```
+
+2. **Start frontend/backend with HTTPS reverse proxy**
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.docker --profile https-proxy up -d --build
+   ```
+
+3. **Optional: start Cloudflare Tunnel sidecar in same stack**
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.docker --profile https-proxy --profile cloudflare-tunnel up -d --build
+   ```
+
+4. **Cloudflare Tunnel public hostname settings**
+   - Service type: `HTTPS`
+   - URL: `https://reverse-proxy:443` (if using sidecar) or `https://<host-ip>:3443`
+   - TLS setting: disable origin certificate validation (Caddy `tls internal` uses self-signed cert)
+
+5. **Use HTTPS domain as app base URL**
+   ```bash
+   NEXT_PUBLIC_BASE_URL=https://your-domain.com
+   ```
+
 > [!NOTE]
 > If you have Docker Compose V1 installed, use `docker-compose` (with hyphen) instead of `docker compose` (with space).
 

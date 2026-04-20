@@ -101,10 +101,44 @@ services:
       retries: 3
       start_period: 60s
 
+  # Optional HTTPS reverse proxy for trusted-origin access
+  # Enable with profile: https-proxy
+  reverse-proxy:
+    image: caddy:2-alpine
+    profiles:
+      - https-proxy
+    ports:
+      - "${HTTPS_PROXY_HTTP_PORT:-3080}:80"
+      - "${HTTPS_PROXY_HTTPS_PORT:-3443}:443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
+    networks:
+      - chordmini-network
+    restart: unless-stopped
+
+  # Optional Cloudflare Zero Trust Tunnel sidecar
+  # Enable with profile: cloudflare-tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles:
+      - cloudflare-tunnel
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - reverse-proxy
+    networks:
+      - chordmini-network
+    restart: unless-stopped
+
 networks:
   chordmini-network:
     driver: bridge
 
 volumes:
   backend-cache:
+  caddy-data:
+  caddy-config:
 
