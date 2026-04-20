@@ -211,42 +211,55 @@ export const CollapsibleVideoPlayer = React.memo<CollapsibleVideoPlayerProps>(({
           <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
             {/* Mini video frame */}
             <div className="relative h-10 w-16 flex-shrink-0 overflow-hidden rounded-md bg-slate-900 sm:h-12 sm:w-20">
-              <div
-                aria-hidden
-                className={`pointer-events-none absolute inset-0 bg-cover bg-center transition-opacity duration-300 ${isPlayerReady ? 'opacity-0' : 'opacity-100'}`}
-                style={{ backgroundImage: `url("${thumbnailUrl}")` }}
-              />
-              <div
-                aria-hidden
-                className={`pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-900/30 via-slate-900/55 to-slate-950/85 transition-opacity duration-300 ${isPlayerReady ? 'opacity-0' : 'opacity-100'}`}
-              />
-              <DynamicReactPlayer
-                ref={playerRef}
-                url={`https://www.youtube.com/watch?v=${videoId}`}
-                width="100%"
-                height="100%"
-                controls={false}
-                playing={isPlaying}
-                playbackRate={playbackRate}
-                onReady={handleReady}
-                onPlay={onPlay}
-                onPause={onPause}
-                onEnded={onEnded}
+              {isEmbedUnavailable ? (
+                <a
+                  href={youtubeWatchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-full w-full items-center justify-center bg-slate-900/90 text-[9px] font-semibold text-white/90"
+                >
+                  Open
+                </a>
+              ) : (
+                <>
+                  <div
+                    aria-hidden
+                    className={`pointer-events-none absolute inset-0 bg-cover bg-center transition-opacity duration-300 ${isPlayerReady ? 'opacity-0' : 'opacity-100'}`}
+                    style={{ backgroundImage: `url("${thumbnailUrl}")` }}
+                  />
+                  <div
+                    aria-hidden
+                    className={`pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-900/30 via-slate-900/55 to-slate-950/85 transition-opacity duration-300 ${isPlayerReady ? 'opacity-0' : 'opacity-100'}`}
+                  />
+                  <DynamicReactPlayer
+                    ref={playerRef}
+                    url={`https://www.youtube.com/watch?v=${videoId}`}
+                    width="100%"
+                    height="100%"
+                    controls={false}
+                    playing={isPlaying}
+                    playbackRate={playbackRate}
+                    onReady={handleReady}
+                    onPlay={onPlay}
+                    onPause={onPause}
+                    onEnded={onEnded}
 
-                onProgress={onProgress}
-                progressInterval={250}
-                muted={false}
-                config={{
-                  playerVars: {
-                    showinfo: 0,
-                    controls: 0,
-                    modestbranding: 1,
-                    rel: 0,
-                    origin: youtubeOrigin
-                  }
-                }}
-                onError={handleError}
-              />
+                    onProgress={onProgress}
+                    progressInterval={250}
+                    muted={false}
+                    config={{
+                      playerVars: {
+                        showinfo: 0,
+                        controls: 0,
+                        modestbranding: 1,
+                        rel: 0,
+                        origin: youtubeOrigin
+                      }
+                    }}
+                    onError={handleError}
+                  />
+                </>
+              )}
             </div>
 
             {/* Play/pause button - larger and more accessible for mobile */}
