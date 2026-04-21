@@ -384,27 +384,27 @@ export const transcribeLyricsWithAI = async (deps: AudioProcessingServiceDepende
         }
       }
     } catch (fallbackError) {
-      console.warn('Free lyrics providers unavailable, continuing to Music.AI transcription:', fallbackError);
+      console.warn('Free lyrics providers unavailable, continuing to AssemblyAI transcription:', fallbackError);
     }
 
-    // Get the user's Music.AI API key
+    // Get the user's lyrics transcription API key (stored under existing key slot for compatibility)
     const { getMusicAiApiKeyWithValidation } = await import('@/utils/apiKeyUtils');
     const keyValidation = await getMusicAiApiKeyWithValidation();
 
     if (!keyValidation.isValid || !keyValidation.apiKey) {
-      setLyricsError(keyValidation.error || 'Music.AI API key not found. Please add your API key in settings.');
+      setLyricsError(keyValidation.error || 'Transcription API key not found. Please add your API key in settings.');
       setIsTranscribingLyrics(false);
       return;
     }
 
-    const musicAiApiKey = keyValidation.apiKey;
+    const assemblyAiApiKey = keyValidation.apiKey;
 
     const response = await apiPost('TRANSCRIBE_LYRICS', {
       videoId,
       audioPath: audioProcessingState.audioUrl, // Fixed: use audioPath instead of audioUrl
       checkCacheOnly: false, // Explicit: this is a transcription request, not cache-only
       forceRefresh: false,
-      musicAiApiKey: musicAiApiKey // Add the API key to the request
+      assemblyAiApiKey
     });
 
     const data = await response.json();

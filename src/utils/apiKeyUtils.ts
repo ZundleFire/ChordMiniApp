@@ -32,17 +32,18 @@ export const getMusicAiApiKeyWithValidation = async (): Promise<{
     return {
       apiKey: null,
       isValid: false,
-      error: 'Music.AI API key not found. Please add your API key in settings.'
+      error: 'Lyrics transcription API key not found. Please add your key in settings.'
     };
   }
 
-  // Basic format validation (UUID format)
+  // Accept both legacy UUID keys and AssemblyAI-style alphanumeric keys.
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(apiKey)) {
+  const assemblyAiRegex = /^[a-zA-Z0-9]{32,}$/;
+  if (!uuidRegex.test(apiKey) && !assemblyAiRegex.test(apiKey)) {
     return {
       apiKey,
       isValid: false,
-      error: 'Invalid Music.AI API key format. Expected UUID format.'
+      error: 'Invalid API key format for lyrics transcription.'
     };
   }
 
