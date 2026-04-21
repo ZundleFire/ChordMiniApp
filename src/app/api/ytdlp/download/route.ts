@@ -22,18 +22,18 @@ export const maxDuration = 300;
 const isDevelopment = process.env.NODE_ENV === 'development';
 const allowYtDlpInProduction = process.env.NEXT_PUBLIC_AUDIO_STRATEGY === 'ytdlp';
 
-export async function POST(request: NextRequest) {
-  // Block in production unless explicitly enabled
-  if (!isDevelopment && !allowYtDlpInProduction) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'yt-dlp endpoints are only available in development environment or when NEXT_PUBLIC_AUDIO_STRATEGY=ytdlp'
-      },
-      { status: 403 }
-    );
-  }
+function isAllowedProductionImportUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
 
+    return hostname === 'suno.com' || hostname === 'www.suno.com';
+  } catch {
+    return false;
+  }
+}
+
+export async function POST(request: NextRequest) {
   try {
     const { url, filename, videoId, format = 'mp3' } = await request.json();
 
@@ -41,6 +41,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'URL is required' },
         { status: 400 }
+      );
+    }
+
+    // Block in production unless explicitly enabled or the import source is explicitly supported.
+    if (!isDevelopment && !allowYtDlpInProduction && !isAllowedProductionImportUrl(url)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'yt-dlp downloads are restricted in production for this source URL'
+        },
+        { status: 403 }
       );
     }
 
