@@ -52,8 +52,19 @@ export function getLocalAudioSearchDirs(): string[] {
 }
 
 export async function ensureLocalAudioWriteDir(): Promise<string> {
-  await fs.mkdir(PROJECT_LOCAL_AUDIO_DIR, { recursive: true });
-  return PROJECT_LOCAL_AUDIO_DIR;
+  try {
+    await fs.mkdir(PROJECT_LOCAL_AUDIO_DIR, { recursive: true });
+    await fs.access(PROJECT_LOCAL_AUDIO_DIR, fs.constants.W_OK);
+    return PROJECT_LOCAL_AUDIO_DIR;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'EACCES' && (error as NodeJS.ErrnoException).code !== 'EPERM') {
+      console.warn(`Failed to prepare primary local audio directory ${PROJECT_LOCAL_AUDIO_DIR}:`, error);
+    }
+
+    await fs.mkdir(LEGACY_LOCAL_AUDIO_DIR, { recursive: true });
+    await fs.access(LEGACY_LOCAL_AUDIO_DIR, fs.constants.W_OK);
+    return LEGACY_LOCAL_AUDIO_DIR;
+  }
 }
 
 export function matchesLocalAudioVideoId(filename: string, videoId: string): boolean {
