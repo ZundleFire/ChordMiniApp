@@ -19,6 +19,8 @@ const DEFAULT_ALLOWED_AUDIO_DOMAINS = [
   'dl.quicktube.app',
   'storage.googleapis.com',
   'firebasestorage.googleapis.com',
+  'drive.google.com',
+  'googleusercontent.com',
   'lukavukanovic.xyz',
   'ytdown.io',
   'ytcontent.net',
