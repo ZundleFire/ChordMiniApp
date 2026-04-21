@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@heroui/react';
 import { addToast } from '@heroui/react';
+import { useSearchParams } from 'next/navigation';
 import Navigation from '@/components/common/Navigation';
 import { analyzeAudioWithRateLimit, AnalysisResult } from '@/services/chord-analysis/chordRecognitionService';
 import { ProcessingStatusSkeleton } from '@/components/common/SkeletonLoaders';
@@ -102,6 +103,7 @@ import { MAX_ANALYSIS_DURATION_MINUTES, getAnalysisDurationLimitReason } from '@
 import MelodyTranscriptionStatusToast from '@/components/analysis/MelodyTranscriptionStatusToast';
 
 export default function LocalAudioAnalyzePage() {
+  const searchParams = useSearchParams();
   const showSheetSage = true;
   useSheetSageBackendAvailability(showSheetSage);
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -111,6 +113,7 @@ export default function LocalAudioAnalyzePage() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [lyricSearchTitle, setLyricSearchTitle] = useState('');
   const [lyricSearchArtist, setLyricSearchArtist] = useState('');
+  const [isImportingSource, setIsImportingSource] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const durationLimitToastShownRef = useRef(false);
@@ -253,6 +256,93 @@ export default function LocalAudioAnalyzePage() {
     audioBuffer: null as AudioBuffer | null,
     audioUrl: null as string | null,
   });
+
+  const importAudioFromSourceUrl = useCallback(async (sourceUrl: string) => {
+    try {
+      setIsImportingSource(true);
+      setAudioProcessingState(prev => ({
+        ...prev,
+        isExtracting: true,
+        isExtracted: false,
+        error: null,
+      }));
+
+      const downloadResponse = await fetch('/api/ytdlp/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: sourceUrl,
+          format: 'mp3',
+        }),
+      });
+
+      const downloadData = await downloadResponse.json();
+
+      if (!downloadResponse.ok || !downloadData?.success || !downloadData?.audioUrl) {
+        throw new Error(downloadData?.error || 'Unable to import audio from link');
+      }
+
+      const importedAudioResponse = await fetch(downloadData.audioUrl);
+      if (!importedAudioResponse.ok) {
+        throw new Error('Imported audio file could not be loaded');
+      }
+
+      const blob = await importedAudioResponse.blob();
+      const inferredName = downloadData.filename || `imported-audio-${Date.now()}.mp3`;
+      const file = new File([blob], inferredName, { type: blob.type || 'audio/mpeg' });
+      setAudioFile(file);
+
+      if (audioRef.current) {
+        if (objectUrlRef.current) {
+          try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+          objectUrlRef.current = null;
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        objectUrlRef.current = objectUrl;
+        audioRef.current.src = objectUrl;
+        audioRef.current.load();
+      }
+
+      setAudioProcessingState(prev => ({
+        ...prev,
+        isExtracting: false,
+        isExtracted: true,
+        audioUrl: downloadData.audioUrl,
+        error: null,
+      }));
+
+      addToast({
+        title: 'Audio imported',
+        description: 'Link imported successfully. Click Analyze to process this song.',
+        color: 'success',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to import audio from link';
+      setAudioProcessingState(prev => ({
+        ...prev,
+        isExtracting: false,
+        isExtracted: false,
+        error: message,
+      }));
+      addToast({
+        title: 'Import failed',
+        description: message,
+        color: 'danger',
+      });
+    } finally {
+      setIsImportingSource(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const sourceUrl = searchParams.get('sourceUrl');
+    if (!sourceUrl || audioFile || isImportingSource || audioProcessingState.isExtracted) {
+      return;
+    }
+
+    void importAudioFromSourceUrl(sourceUrl);
+  }, [audioFile, audioProcessingState.isExtracted, importAudioFromSourceUrl, isImportingSource, searchParams]);
   // Analysis results state (must be declared before dependent memos)
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null);
 

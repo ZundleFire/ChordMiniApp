@@ -27,6 +27,12 @@ export const useSharedSearchState = () => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
+  const extractSunoUrl = useCallback((input: string): string | null => {
+    const trimmed = input.trim();
+    const sunoPattern = /^https?:\/\/(?:www\.)?suno\.com\/s\/[A-Za-z0-9_-]+\/?(?:\?.*)?$/i;
+    return sunoPattern.test(trimmed) ? trimmed : null;
+  }, []);
+
   // Extract video ID from URL or direct ID
   const extractVideoId = useCallback((url: string): string | null => {
     const regexPatterns = [
@@ -61,6 +67,13 @@ export const useSharedSearchState = () => {
     const videoId = extractVideoId(query);
     if (videoId) {
       // Don't auto-navigate for URLs during typing, just clear results
+      setSearchResults([]);
+      setSearchError(null);
+      return;
+    }
+
+    // Suno links are handled on submit (import flow), not via YouTube search results.
+    if (extractSunoUrl(query)) {
       setSearchResults([]);
       setSearchError(null);
       return;
@@ -161,9 +174,19 @@ export const useSharedSearchState = () => {
       return;
     }
 
+    // Handle Suno links by redirecting to upload analyzer import flow.
+    const sunoUrl = extractSunoUrl(searchQuery);
+    if (sunoUrl) {
+      const target = new URL('/analyze', window.location.origin);
+      target.searchParams.set('sourceUrl', sunoUrl);
+      target.searchParams.set('sourceType', 'suno');
+      router.push(`${target.pathname}?${target.searchParams.toString()}`);
+      return;
+    }
+
     // For search queries, perform the search
     await performSearch(searchQuery);
-  }, [searchQuery, extractVideoId, router, performSearch, setIsSearching, setSearchError]);
+  }, [searchQuery, extractVideoId, extractSunoUrl, router, performSearch, setIsSearching, setSearchError]);
 
   // Handle video selection from search results
   const handleVideoSelect = useCallback((videoId: string, title?: string, metadata?: YouTubeSearchResult) => {
@@ -180,7 +203,8 @@ export const useSharedSearchState = () => {
       // Only search if query is meaningful (more than 2 characters)
       // Check if it's not a direct YouTube URL or video ID
       const videoId = extractVideoId(searchQuery);
-      if (!videoId) {
+      const sunoUrl = extractSunoUrl(searchQuery);
+      if (!videoId && !sunoUrl) {
         // Trigger debounced search for search queries
         performSearch(searchQuery);
       }
@@ -189,7 +213,7 @@ export const useSharedSearchState = () => {
       setSearchResults([]);
       setSearchError(null);
     }
-  }, [searchQuery, performSearch, extractVideoId]);
+  }, [searchQuery, performSearch, extractVideoId, extractSunoUrl]);
 
   // Update search query (synchronized across all components)
   const updateSearchQuery = useCallback((query: string) => {

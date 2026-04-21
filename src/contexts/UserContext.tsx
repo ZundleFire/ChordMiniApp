@@ -27,6 +27,37 @@ export interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+function getFriendlyAuthError(err: unknown): string {
+  const errorWithCode = err as { code?: string; message?: string };
+
+  switch (errorWithCode?.code) {
+    case 'auth/popup-closed-by-user':
+      return 'Sign-in popup was closed before completion.';
+    case 'auth/popup-blocked':
+      return 'Sign-in popup was blocked. Please allow popups for this site and try again.';
+    case 'auth/unauthorized-domain':
+      return 'This domain is not authorized for Google sign-in. Add it in Firebase Authentication settings.';
+    case 'auth/operation-not-allowed':
+      return 'This sign-in method is disabled in Firebase. Enable it in Authentication > Sign-in method.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/invalid-credential':
+      return 'Invalid credentials. Please try again.';
+    case 'auth/user-not-found':
+      return 'No account exists for that email address.';
+    case 'auth/wrong-password':
+      return 'Incorrect password.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists.';
+    case 'auth/weak-password':
+      return 'Password is too weak. Use at least 6 characters.';
+    case 'auth/network-request-failed':
+      return 'Network error while contacting Firebase. Please check your connection and try again.';
+    default:
+      return errorWithCode?.message || 'Authentication failed. Please try again.';
+  }
+}
+
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [auth, setAuth] = useState<Auth | null>(null);
@@ -77,7 +108,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const message = err instanceof Error ? err.message : 'Failed to initialize Google sign-in';
+        const message = getFriendlyAuthError(err) || 'Failed to initialize Google sign-in';
         setAuth(null);
         setLoading(false);
         setError(message);
@@ -105,10 +136,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to sign in with Google';
+      const message = getFriendlyAuthError(err);
       setError(message);
       console.error('Google Sign-In Error:', err);
-      throw err;
+      throw new Error(message);
     } finally {
       setLoading(false);
     }
@@ -132,10 +163,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to sign in with email and password';
+      const message = getFriendlyAuthError(err);
       setError(message);
       console.error('Email Sign-In Error:', err);
-      throw err;
+      throw new Error(message);
     } finally {
       setLoading(false);
     }
@@ -159,10 +190,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       await createUserWithEmailAndPassword(auth, email.trim(), password);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create account with email and password';
+      const message = getFriendlyAuthError(err);
       setError(message);
       console.error('Email Sign-Up Error:', err);
-      throw err;
+      throw new Error(message);
     } finally {
       setLoading(false);
     }
