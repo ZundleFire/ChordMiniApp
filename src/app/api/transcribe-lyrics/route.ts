@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/services/firebase/firebaseService';
 import { searchLyricsWithFallback } from '@/services/lyrics/lyricsService';
+import musicAiService from '@/services/lyrics/musicAiService';
 import type { LyricsData } from '@/types/musicAiTypes';
 
 interface CachedLyricsData {
@@ -11,6 +12,7 @@ interface CachedLyricsData {
 }
 
 const TIMED_LYRICS_CACHE_SOURCES = new Set([
+  'musicai-transcription',
   'free-lrclib-timing-json',
   'manual-lyrics-timed-json',
 ]);
@@ -48,6 +50,7 @@ export async function POST(request: NextRequest) {
       audioPath,
       forceRefresh,
       checkCacheOnly,
+      musicAiApiKey,
       title,
       artist,
       channel,
@@ -82,6 +85,36 @@ export async function POST(request: NextRequest) {
 
     if (!audioPath) {
       return NextResponse.json({ error: 'Audio file not found. Please extract audio first.' }, { status: 404 });
+    }
+
+    const providedMusicAiKey = typeof musicAiApiKey === 'string' ? musicAiApiKey.trim() : '';
+    if (providedMusicAiKey) {
+      try {
+        const musicAiLyrics = await musicAiService.transcribeLyrics(audioPath, undefined, providedMusicAiKey);
+        if (musicAiLyrics?.lines?.length) {
+          try {
+            await setDoc(lyricsDocRef, {
+              ...musicAiLyrics,
+              videoId,
+              timestamp: new Date().toISOString(),
+              cached: true,
+              source: 'musicai-transcription',
+            });
+          } catch (cacheError) {
+            console.warn('Failed to cache Music.ai lyrics in Firestore:', cacheError);
+          }
+
+          return NextResponse.json({
+            success: true,
+            message: 'Lyrics transcribed with Music.ai',
+            lyrics: musicAiLyrics,
+            cached: false,
+            source: 'musicai-transcription',
+          });
+        }
+      } catch (musicAiError) {
+        console.warn('Music.ai transcription failed, falling back to free synchronized lyrics:', musicAiError);
+      }
     }
 
     const parsedTitle = typeof title === 'string' ? title.trim() : '';

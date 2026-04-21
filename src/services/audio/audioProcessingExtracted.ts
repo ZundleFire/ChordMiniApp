@@ -328,6 +328,10 @@ export const transcribeLyricsWithAI = async (deps: AudioProcessingServiceDepende
     setIsTranscribingLyrics(true);
     setLyricsError(null);
 
+    const { getMusicAiApiKeyWithValidation } = await import('@/utils/apiKeyUtils');
+    const keyValidation = await getMusicAiApiKeyWithValidation();
+    const musicAiApiKey = keyValidation.isValid && keyValidation.apiKey ? keyValidation.apiKey : undefined;
+
     const response = await apiPost('TRANSCRIBE_LYRICS', {
       videoId,
       audioPath: audioProcessingState.audioUrl, // Fixed: use audioPath instead of audioUrl
@@ -336,6 +340,7 @@ export const transcribeLyricsWithAI = async (deps: AudioProcessingServiceDepende
       title: titleFromSearch,
       artist: channelFromSearch,
       searchQuery: [titleFromSearch, channelFromSearch].filter(Boolean).join(' - '),
+      ...(musicAiApiKey ? { musicAiApiKey } : {}),
     });
 
     const data = await response.json();

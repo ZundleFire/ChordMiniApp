@@ -649,6 +649,9 @@ function LocalAudioAnalyzePageInner() {
 
     const transcribeAndStoreLyrics = async () => {
       try {
+        const { getMusicAiApiKey } = await import('@/utils/apiKeyUtils');
+        const musicAiApiKey = await getMusicAiApiKey();
+
         const response = await fetch('/api/transcribe-lyrics', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -659,6 +662,7 @@ function LocalAudioAnalyzePageInner() {
             checkCacheOnly: false,
             title: audioFile?.name || localFavoriteTitle || localFavoriteId || undefined,
             searchQuery: [audioFile?.name, localFavoriteTitle, localFavoriteId].filter(Boolean).join(' - '),
+            ...(musicAiApiKey ? { musicAiApiKey } : {}),
           }),
         });
 

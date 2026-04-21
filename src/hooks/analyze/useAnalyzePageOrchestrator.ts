@@ -1015,6 +1015,9 @@ export function useAnalyzePageOrchestrator({
       autoLyricsRequestKeyRef.current = requestKey;
 
       try {
+        const { getMusicAiApiKey } = await import('@/utils/apiKeyUtils');
+        const musicAiApiKey = await getMusicAiApiKey();
+
         const response = await fetch('/api/transcribe-lyrics', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1026,6 +1029,7 @@ export function useAnalyzePageOrchestrator({
             title: titleFromSearch || undefined,
             artist: channelFromSearch || undefined,
             searchQuery: [channelFromSearch, titleFromSearch, videoId].filter(Boolean).join(' - '),
+            ...(musicAiApiKey ? { musicAiApiKey } : {}),
           }),
         });
 

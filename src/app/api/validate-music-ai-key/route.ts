@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { CustomMusicAiClient } from '@/services/api/customMusicAiClient';
 
 interface ValidationRequest {
   apiKey: string;
@@ -21,10 +22,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Free synchronized lyrics mode is default; remote key validation is no longer required.
-    return NextResponse.json({ valid: true, message: 'Key format accepted.' });
+    const client = new CustomMusicAiClient({ apiKey, timeout: 30000, retries: 1 });
+    const workflows = await client.listWorkflows();
+
+    if (!Array.isArray(workflows) || workflows.length === 0) {
+      return NextResponse.json(
+        { valid: false, error: 'Music.ai key is valid format but no workflows were returned.' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ valid: true, message: 'Music.ai API key is valid.' });
   } catch (error) {
-    console.error('Error validating API key:', error);
-    return NextResponse.json({ valid: false, error: 'Internal server error' }, { status: 500 });
+    console.error('Error validating Music.ai API key:', error);
+    const details = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ valid: false, error: details }, { status: 500 });
   }
 }
