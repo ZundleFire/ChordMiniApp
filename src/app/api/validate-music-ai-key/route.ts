@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateAssemblyApiKey } from '@/services/lyrics/assemblyAiService';
 
 interface ValidationRequest {
   apiKey: string;
@@ -14,20 +13,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ valid: false, error: 'API key is required' }, { status: 400 });
     }
 
-    const keyLooksValid = /^[a-zA-Z0-9]{32,}$/.test(apiKey) || /^[0-9a-f-]{36}$/i.test(apiKey);
+    const keyLooksValid = /^[a-zA-Z0-9]{16,}$/.test(apiKey) || /^[0-9a-f-]{36}$/i.test(apiKey);
     if (!keyLooksValid) {
       return NextResponse.json(
-        { valid: false, error: 'Invalid key format. Please provide a valid AssemblyAI key.' },
+        { valid: false, error: 'Invalid key format.' },
         { status: 400 }
       );
     }
 
-    const validation = await validateAssemblyApiKey(apiKey);
-    if (!validation.valid) {
-      return NextResponse.json({ valid: false, error: validation.error || 'Invalid API key' }, { status: 400 });
-    }
-
-    return NextResponse.json({ valid: true, message: 'API key is valid' });
+    // Free synchronized lyrics mode is default; remote key validation is no longer required.
+    return NextResponse.json({ valid: true, message: 'Key format accepted.' });
   } catch (error) {
     console.error('Error validating API key:', error);
     return NextResponse.json({ valid: false, error: 'Internal server error' }, { status: 500 });

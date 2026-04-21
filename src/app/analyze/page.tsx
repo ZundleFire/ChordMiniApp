@@ -225,6 +225,14 @@ function LocalAudioAnalyzePageInner() {
     return `local-${safeName}-${audioFile.size}-${audioFile.lastModified}`;
   }, [audioFile]);
 
+  const localFavoriteTitle = useMemo(() => {
+    const titleFromRoute = searchParams.get('title');
+    if (titleFromRoute && titleFromRoute.trim().length > 0) {
+      return titleFromRoute.trim();
+    }
+    return null;
+  }, [searchParams]);
+
   const sourceIdentity = useMemo(() => {
     const sharedAudioUrl = searchParams.get('sharedAudioUrl');
     if (sharedAudioUrl) {
@@ -672,7 +680,7 @@ function LocalAudioAnalyzePageInner() {
     return () => {
       isCancelled = true;
     };
-  }, [analysisResults, audioFile?.name, audioProcessingState.audioUrl, completeLyricsTranscription, localFavoriteId, lyrics?.lines?.length, sourceIdentity]);
+  }, [analysisResults, audioFile?.name, audioProcessingState.audioUrl, completeLyricsTranscription, localFavoriteId, localFavoriteTitle, lyrics?.lines?.length, sourceIdentity]);
 
   useEffect(() => {
     if (!lyrics?.lines?.length) {
