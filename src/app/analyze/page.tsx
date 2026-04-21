@@ -1721,7 +1721,7 @@ const simplifiedChordGridData = useMemo(() => {
                         <input
                           type="range"
                           min="0"
-                          max="12"
+                          max="60"
                           step="0.25"
                           value={lyricDelaySeconds}
                           onChange={(event) => setLyricDelaySeconds(parseFloat(event.target.value))}
