@@ -121,6 +121,7 @@ function LocalAudioAnalyzePageInner() {
   const [lyricSearchArtist, setLyricSearchArtist] = useState('');
   const [manualLyricsInput, setManualLyricsInput] = useState('');
   const [isManualLyricsEditorOpen, setIsManualLyricsEditorOpen] = useState(true);
+  const [lyricDelaySeconds, setLyricDelaySeconds] = useState(0);
   const [isImportingSource, setIsImportingSource] = useState(false);
   const [persistentAudioUrl, setPersistentAudioUrl] = useState<string | null>(null);
   const [isPersistingAudio, setIsPersistingAudio] = useState(false);
@@ -133,6 +134,7 @@ function LocalAudioAnalyzePageInner() {
   const durationLimitToastShownRef = useRef(false);
 
   const { lyrics, completeLyricsTranscription } = useLyricsState();
+  const lyricDisplayTime = useMemo(() => Math.max(0, currentTime - lyricDelaySeconds), [currentTime, lyricDelaySeconds]);
   const analysisDurationLimitReason = useMemo(
     () => getAnalysisDurationLimitReason(duration),
     [duration],
@@ -1709,6 +1711,29 @@ const simplifiedChordGridData = useMemo(() => {
               {analysisResults && (
                 <div className="mb-4">
 
+                  <div className="mb-3 rounded-xl border border-default-200 bg-default-50/50 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Lyrics Delay</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-300">Delay lyric/karaoke timing to better match vocals.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min="0"
+                          max="12"
+                          step="0.25"
+                          value={lyricDelaySeconds}
+                          onChange={(event) => setLyricDelaySeconds(parseFloat(event.target.value))}
+                          className="w-44 accent-blue-500"
+                        />
+                        <span className="min-w-[72px] text-right text-sm font-semibold text-blue-700 dark:text-blue-300">
+                          +{lyricDelaySeconds.toFixed(2)}s
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Tab content */}
                   <div className="tab-content">
                     {/* Beat & Chord Map Tab */}
@@ -1799,7 +1824,7 @@ const simplifiedChordGridData = useMemo(() => {
                     {/* Guitar Chords Tab */}
                     {activeTab === 'guitarChords' && (
                       <div>
-                        <KaraokeInlinePanel lyrics={lyrics} currentTime={currentTime} />
+                        <KaraokeInlinePanel lyrics={lyrics} currentTime={lyricDisplayTime} />
                         <GuitarChordsTab
                           analysisResults={analysisResults}
                           chordGridData={simplifiedChordGridData}
@@ -1821,7 +1846,7 @@ const simplifiedChordGridData = useMemo(() => {
                     {/* Piano Visualizer Tab */}
                     {activeTab === 'pianoVisualizer' && (
                       <div>
-                        <KaraokeInlinePanel lyrics={lyrics} currentTime={currentTime} />
+                        <KaraokeInlinePanel lyrics={lyrics} currentTime={lyricDisplayTime} />
                         <PianoVisualizerTab
                           analysisResults={analysisResults}
                           chordGridData={simplifiedChordGridData}
@@ -1883,7 +1908,7 @@ const simplifiedChordGridData = useMemo(() => {
                             showLyrics={Boolean(lyrics)}
                             lyrics={lyrics}
                             hasCachedLyrics={false}
-                            currentTime={currentTime}
+                            currentTime={lyricDisplayTime}
                             fontSize={fontSize}
                             theme={theme}
                             analysisResults={analysisResults}
