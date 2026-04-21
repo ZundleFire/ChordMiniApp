@@ -21,6 +21,7 @@ const robotoMono = Roboto_Mono({
   subsets: ['latin'],
   variable: '--font-roboto-mono',
   display: 'swap',
+  preload: false,
 });
 
 // Reference-inspired primary sans (closest supported match to Google Sans)
@@ -29,6 +30,7 @@ const dmSans = DM_Sans({
   variable: '--font-brand-sans',
   display: 'swap',
   weight: ['400', '500', '600', '700'],
+  preload: false,
 });
 
 // Previous chord-label font family used across beat grids, guitar chord labels, and lyrics chords
@@ -37,6 +39,7 @@ const varelaRound = Varela_Round({
   subsets: ['latin'],
   variable: '--font-varela-round',
   display: 'swap',
+  preload: false,
 });
 
 
