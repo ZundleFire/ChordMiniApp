@@ -2,14 +2,81 @@
 
 import React from 'react';
 import { Card, CardBody, Image, Button } from '@heroui/react';
+import { addToast } from '@heroui/react';
+import { useRouter } from 'next/navigation';
 import Navigation from '@/components/common/Navigation';
 import { useFavorites } from '@/hooks/useUserLibrary';
 import { useUser } from '@/contexts/UserContext';
 import { buildAudioProxyUrl } from '@/utils/audioProxyUrl';
+import type { FavoriteTrack } from '@/services/firebase/userLibraryService';
 
 export default function FavoritesPage() {
+  const router = useRouter();
   const { isAuthenticated } = useUser();
   const { favorites, loading, removeFromFavorites } = useFavorites();
+
+  const getAnalysisUrl = (track: FavoriteTrack): string | null => {
+    if (track.sourceType === 'local-upload') {
+      if (!track.audioUrl) {
+        return null;
+      }
+
+      const params = new URLSearchParams({
+        sharedAudioUrl: track.audioUrl,
+      });
+
+      if (track.title) {
+        params.set('title', track.title);
+      }
+
+      return `/analyze?${params.toString()}`;
+    }
+
+    return `/analyze/${encodeURIComponent(track.videoId)}`;
+  };
+
+  const openAnalysis = (track: FavoriteTrack) => {
+    const target = getAnalysisUrl(track);
+    if (!target) {
+      addToast({
+        title: 'Missing audio source',
+        description: 'This favorite does not have a playable audio URL yet.',
+        color: 'warning',
+      });
+      return;
+    }
+
+    router.push(target);
+  };
+
+  const shareAnalysis = async (track: FavoriteTrack) => {
+    const target = getAnalysisUrl(track);
+    if (!target) {
+      addToast({
+        title: 'Cannot share yet',
+        description: 'This favorite does not have a shareable analysis URL yet.',
+        color: 'warning',
+      });
+      return;
+    }
+
+    try {
+      const shareUrl = `${window.location.origin}${target}`;
+      await navigator.clipboard.writeText(shareUrl);
+      addToast({
+        title: 'Share link copied',
+        description: 'The analysis URL is now in your clipboard.',
+        color: 'success',
+      });
+    } catch (error) {
+      console.error('Failed to copy share link:', error);
+      addToast({
+        title: 'Share failed',
+        description: 'Could not copy link to clipboard.',
+        color: 'danger',
+      });
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -93,6 +160,24 @@ export default function FavoritesPage() {
                       />
                     </div>
                   )}
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <Button
+                      color="primary"
+                      variant="flat"
+                      size="sm"
+                      onPress={() => openAnalysis(track)}
+                    >
+                      Open Analysis
+                    </Button>
+                    <Button
+                      color="secondary"
+                      variant="flat"
+                      size="sm"
+                      onPress={() => shareAnalysis(track)}
+                    >
+                      Share
+                    </Button>
+                  </div>
                   <Button
                     color="danger"
                     variant="flat"

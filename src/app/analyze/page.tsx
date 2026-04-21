@@ -430,6 +430,74 @@ function LocalAudioAnalyzePageInner() {
     }
   }, []);
 
+  const importAudioFromDirectUrl = useCallback(async (inputUrl: string, sharedTitle?: string) => {
+    try {
+      setIsImportingSource(true);
+      setAudioProcessingState(prev => ({
+        ...prev,
+        isExtracting: true,
+        isExtracted: false,
+        error: null,
+      }));
+
+      const proxiedUrl = inputUrl.startsWith('/api/proxy-audio')
+        ? inputUrl
+        : buildAudioProxyUrl(inputUrl, { forceProxy: true });
+
+      const response = await fetch(proxiedUrl);
+      if (!response.ok) {
+        throw new Error('Shared audio file could not be loaded');
+      }
+
+      const blob = await response.blob();
+      const inferredName = sharedTitle?.trim() || `shared-audio-${Date.now()}.mp3`;
+      const file = new File([blob], inferredName, { type: blob.type || 'audio/mpeg' });
+      setAudioFile(file);
+      setPersistentAudioUrl(inputUrl);
+
+      if (audioRef.current) {
+        if (objectUrlRef.current) {
+          try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+          objectUrlRef.current = null;
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        objectUrlRef.current = objectUrl;
+        audioRef.current.src = objectUrl;
+        audioRef.current.load();
+      }
+
+      setAudioProcessingState(prev => ({
+        ...prev,
+        isExtracting: false,
+        isExtracted: true,
+        audioUrl: proxiedUrl,
+        error: null,
+      }));
+
+      addToast({
+        title: 'Shared audio loaded',
+        description: 'Shared favorite loaded successfully. Click Analyze Audio to process it.',
+        color: 'success',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load shared audio';
+      setAudioProcessingState(prev => ({
+        ...prev,
+        isExtracting: false,
+        isExtracted: false,
+        error: message,
+      }));
+      addToast({
+        title: 'Shared audio failed',
+        description: message,
+        color: 'danger',
+      });
+    } finally {
+      setIsImportingSource(false);
+    }
+  }, []);
+
   useEffect(() => {
     const sourceUrl = searchParams.get('sourceUrl');
     if (!sourceUrl || audioFile || isImportingSource || audioProcessingState.isExtracted) {
@@ -438,6 +506,16 @@ function LocalAudioAnalyzePageInner() {
 
     void importAudioFromSourceUrl(sourceUrl);
   }, [audioFile, audioProcessingState.isExtracted, importAudioFromSourceUrl, isImportingSource, searchParams]);
+
+  useEffect(() => {
+    const sharedAudioUrl = searchParams.get('sharedAudioUrl');
+    const sharedTitle = searchParams.get('title') || undefined;
+    if (!sharedAudioUrl || audioFile || isImportingSource || audioProcessingState.isExtracted) {
+      return;
+    }
+
+    void importAudioFromDirectUrl(sharedAudioUrl, sharedTitle);
+  }, [audioFile, audioProcessingState.isExtracted, importAudioFromDirectUrl, isImportingSource, searchParams]);
   // Lyrics state (before memos that depend on it)
   const [fontSize, setFontSize] = useState<number>(16);
   const theme = 'light';
