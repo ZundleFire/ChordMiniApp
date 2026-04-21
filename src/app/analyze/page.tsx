@@ -105,6 +105,8 @@ import { FavoritesButton } from '@/components/common/FavoritesButton';
 import { offloadUploadService } from '@/services/storage/offloadUploadService';
 import { buildAudioProxyUrl } from '@/utils/audioProxyUrl';
 import { isGoogleDriveUrl, normalizeGoogleDriveAudioSource } from '@/utils/googleDriveUrl';
+import KaraokeInlinePanel from '@/components/lyrics/KaraokeInlinePanel';
+import { loadCachedLocalAnalysis, saveCachedLocalAnalysis } from '@/services/storage/localAnalysisCacheService';
 
 function LocalAudioAnalyzePageInner() {
   const searchParams = useSearchParams();
@@ -118,6 +120,7 @@ function LocalAudioAnalyzePageInner() {
   const [lyricSearchTitle, setLyricSearchTitle] = useState('');
   const [lyricSearchArtist, setLyricSearchArtist] = useState('');
   const [manualLyricsInput, setManualLyricsInput] = useState('');
+  const [isManualLyricsEditorOpen, setIsManualLyricsEditorOpen] = useState(true);
   const [isImportingSource, setIsImportingSource] = useState(false);
   const [persistentAudioUrl, setPersistentAudioUrl] = useState<string | null>(null);
   const [isPersistingAudio, setIsPersistingAudio] = useState(false);
@@ -125,6 +128,7 @@ function LocalAudioAnalyzePageInner() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const persistRequestIdRef = useRef(0);
+  const restoredCacheIdentityRef = useRef<string | null>(null);
   const durationLimitToastShownRef = useRef(false);
 
   const { lyrics, completeLyricsTranscription } = useLyricsState();
@@ -218,6 +222,28 @@ function LocalAudioAnalyzePageInner() {
     return `local-${safeName}-${audioFile.size}-${audioFile.lastModified}`;
   }, [audioFile]);
 
+  const sourceIdentity = useMemo(() => {
+    const sharedAudioUrl = searchParams.get('sharedAudioUrl');
+    if (sharedAudioUrl) {
+      return `shared:${sharedAudioUrl}`;
+    }
+
+    const sourceUrl = searchParams.get('sourceUrl');
+    if (sourceUrl) {
+      return `source:${sourceUrl}`;
+    }
+
+    if (persistentAudioUrl) {
+      return `persistent:${persistentAudioUrl}`;
+    }
+
+    if (localFavoriteId) {
+      return `local:${localFavoriteId}`;
+    }
+
+    return '';
+  }, [localFavoriteId, persistentAudioUrl, searchParams]);
+
   const handleApplyManualLyrics = useCallback(() => {
     const text = manualLyricsInput.trim();
     if (!text) {
@@ -248,22 +274,38 @@ function LocalAudioAnalyzePageInner() {
       .filter((time): time is number => typeof time === 'number' && Number.isFinite(time) && time >= 0)
       .sort((a, b) => a - b);
 
+    const chordAnchors = (analysisResults?.synchronizedChords || [])
+      .map((item) => {
+        const chordName = (item?.chord || '').trim().toUpperCase();
+        const isNoChord = chordName === '' || chordName === 'N' || chordName === 'N/C' || chordName === 'NC' || chordName === 'N.C.';
+        const beatIndex = typeof item?.beatIndex === 'number' ? item.beatIndex : -1;
+        const anchorTime = beatIndex >= 0 && beatIndex < beatTimes.length ? beatTimes[beatIndex] : null;
+        return !isNoChord && typeof anchorTime === 'number' ? anchorTime : null;
+      })
+      .filter((time): time is number => typeof time === 'number' && Number.isFinite(time))
+      .sort((a, b) => a - b);
+
+    const firstMusicAnchor = chordAnchors[0] ?? beatTimes[0] ?? 0;
+    const anchoredBeatTimes = beatTimes.filter((time) => time >= firstMusicAnchor);
+
     const totalDuration = duration > 0 ? duration : Math.max(lyricLines.length * 2, 8);
 
     const lines = lyricLines.map((line, index) => {
-      if (beatTimes.length >= 2) {
+      if (anchoredBeatTimes.length >= 2) {
+        const introLeadIn = Math.max(0, firstMusicAnchor - Math.min(1.5, Math.max(0.2, (anchoredBeatTimes[1] - anchoredBeatTimes[0]) * 0.75)));
+        const timeline = [introLeadIn, ...anchoredBeatTimes];
         const startIdx = Math.min(
-          beatTimes.length - 1,
-          Math.floor((index / lyricLines.length) * (beatTimes.length - 1))
+          timeline.length - 1,
+          Math.floor((index / lyricLines.length) * (timeline.length - 1))
         );
         const endIdx = Math.min(
-          beatTimes.length - 1,
-          Math.floor(((index + 1) / lyricLines.length) * (beatTimes.length - 1))
+          timeline.length - 1,
+          Math.floor(((index + 1) / lyricLines.length) * (timeline.length - 1))
         );
 
-        const startTime = beatTimes[startIdx];
+        const startTime = timeline[startIdx];
         const fallbackEnd = startTime + 2;
-        const endCandidate = beatTimes[Math.max(endIdx, startIdx + 1)] ?? fallbackEnd;
+        const endCandidate = timeline[Math.max(endIdx, startIdx + 1)] ?? fallbackEnd;
         const endTime = endCandidate > startTime ? endCandidate : fallbackEnd;
 
         return { startTime, endTime, text: line };
@@ -279,13 +321,14 @@ function LocalAudioAnalyzePageInner() {
     });
 
     completeLyricsTranscription({ lines });
+    setIsManualLyricsEditorOpen(false);
     setActiveTab('lyricsChords');
     addToast({
       title: 'Lyrics added',
-      description: 'Manual lyrics applied and aligned to beat/chord anchors.',
+      description: 'Manual lyrics aligned with music start and beat/chord anchors.',
       color: 'success',
     });
-  }, [analysisResults?.beats, completeLyricsTranscription, duration, manualLyricsInput]);
+  }, [analysisResults?.beats, analysisResults?.synchronizedChords, completeLyricsTranscription, duration, manualLyricsInput]);
 
 
   // Use processing context
@@ -525,6 +568,63 @@ function LocalAudioAnalyzePageInner() {
 
     void importAudioFromDirectUrl(sharedAudioUrl, sharedTitle);
   }, [audioFile, audioProcessingState.isExtracted, importAudioFromDirectUrl, isImportingSource, searchParams]);
+
+  useEffect(() => {
+    if (!sourceIdentity || !audioProcessingState.isExtracted || analysisResults) {
+      return;
+    }
+
+    if (restoredCacheIdentityRef.current === sourceIdentity) {
+      return;
+    }
+    restoredCacheIdentityRef.current = sourceIdentity;
+
+    const cached = loadCachedLocalAnalysis(sourceIdentity);
+    if (!cached) {
+      return;
+    }
+
+    setAnalysisResults(cached.analysisResults);
+    if (cached.duration > 0) {
+      setDuration(cached.duration);
+    }
+    if (cached.lyrics?.lines?.length) {
+      completeLyricsTranscription(cached.lyrics);
+    }
+
+    setAudioProcessingState((prev) => ({
+      ...prev,
+      isAnalyzing: false,
+      isAnalyzed: true,
+      error: null,
+    }));
+
+    addToast({
+      title: 'Loaded saved analysis',
+      description: 'Opened from local cache without re-analyzing audio.',
+      color: 'success',
+    });
+  }, [analysisResults, audioProcessingState.isExtracted, completeLyricsTranscription, sourceIdentity]);
+
+  useEffect(() => {
+    if (!sourceIdentity || !analysisResults) {
+      return;
+    }
+
+    saveCachedLocalAnalysis(sourceIdentity, {
+      analysisResults,
+      lyrics,
+      duration,
+      title: audioFile?.name,
+    });
+  }, [analysisResults, audioFile?.name, duration, lyrics, sourceIdentity]);
+
+  useEffect(() => {
+    if (!lyrics?.lines?.length) {
+      setIsManualLyricsEditorOpen(true);
+    }
+  }, [lyrics?.lines?.length]);
+
   // Lyrics state (before memos that depend on it)
   const [fontSize, setFontSize] = useState<number>(16);
   const theme = 'light';
@@ -831,6 +931,7 @@ function LocalAudioAnalyzePageInner() {
     setPersistentAudioUrl(null);
     setIsPersistingAudio(true);
     setManualLyricsInput('');
+    setIsManualLyricsEditorOpen(true);
 
     // Reset states
     setAudioProcessingState({
@@ -1642,64 +1743,85 @@ const simplifiedChordGridData = useMemo(() => {
 
                     {/* Guitar Chords Tab */}
                     {activeTab === 'guitarChords' && (
-                      <GuitarChordsTab
-                        analysisResults={analysisResults}
-                        chordGridData={simplifiedChordGridData}
-                        keySignature={keySignature}
-                        isDetectingKey={isDetectingKey}
-                        isChatbotOpen={isChatbotOpen}
-                        isLyricsPanelOpen={isLyricsPanelOpen}
-                        isUploadPage={true}
-                        showCorrectedChords={showCorrectedChords}
-                        chordCorrections={chordCorrections}
-                        sequenceCorrections={sequenceCorrections}
-                        segmentationData={segmentationData}
-                        isChordPlaybackEnabled={chordPlayback.isEnabled}
-                        audioUrl={audioProcessingState.audioUrl || null}
-                      />
+                      <div>
+                        <KaraokeInlinePanel lyrics={lyrics} currentTime={currentTime} />
+                        <GuitarChordsTab
+                          analysisResults={analysisResults}
+                          chordGridData={simplifiedChordGridData}
+                          keySignature={keySignature}
+                          isDetectingKey={isDetectingKey}
+                          isChatbotOpen={isChatbotOpen}
+                          isLyricsPanelOpen={isLyricsPanelOpen}
+                          isUploadPage={true}
+                          showCorrectedChords={showCorrectedChords}
+                          chordCorrections={chordCorrections}
+                          sequenceCorrections={sequenceCorrections}
+                          segmentationData={segmentationData}
+                          isChordPlaybackEnabled={chordPlayback.isEnabled}
+                          audioUrl={audioProcessingState.audioUrl || null}
+                        />
+                      </div>
                     )}
 
                     {/* Piano Visualizer Tab */}
                     {activeTab === 'pianoVisualizer' && (
-                      <PianoVisualizerTab
-                        analysisResults={analysisResults}
-                        chordGridData={simplifiedChordGridData}
-                        keySignature={keySignature}
-                        showCorrectedChords={showCorrectedChords}
-                        chordCorrections={chordCorrections}
-                        sequenceCorrections={sequenceCorrections}
-                        segmentationData={segmentationData}
-                        currentTime={currentTime}
-                        isPlaying={isPlaying}
-                        isChordPlaybackEnabled={chordPlayback.isEnabled}
-                        audioUrl={audioProcessingState.audioUrl || null}
-                        sheetSageResult={sheetSageResult}
-                        showMelodicOverlay={isMelodicTranscriptionPlaybackEnabled && hasSheetSageNotes}
-                      />
+                      <div>
+                        <KaraokeInlinePanel lyrics={lyrics} currentTime={currentTime} />
+                        <PianoVisualizerTab
+                          analysisResults={analysisResults}
+                          chordGridData={simplifiedChordGridData}
+                          keySignature={keySignature}
+                          showCorrectedChords={showCorrectedChords}
+                          chordCorrections={chordCorrections}
+                          sequenceCorrections={sequenceCorrections}
+                          segmentationData={segmentationData}
+                          currentTime={currentTime}
+                          isPlaying={isPlaying}
+                          isChordPlaybackEnabled={chordPlayback.isEnabled}
+                          audioUrl={audioProcessingState.audioUrl || null}
+                          sheetSageResult={sheetSageResult}
+                          showMelodicOverlay={isMelodicTranscriptionPlaybackEnabled && hasSheetSageNotes}
+                        />
+                      </div>
                     )}
 
                     {activeTab === 'lyricsChords' && (
                       <ScrollableTabContainer variant="plain" heightClass="h-[60vh] md:h-[66vh]">
                         <div className="space-y-4">
                           <div className="rounded-xl border border-default-200 bg-default-50/60 p-3">
-                            <div className="flex flex-col gap-2">
-                              <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Manual Lyrics</p>
-                              <p className="text-xs text-gray-600 dark:text-gray-300">Paste lyrics line-by-line, then apply to auto-align against detected beat/chord anchors.</p>
-                              <textarea
-                                value={manualLyricsInput}
-                                onChange={(event) => setManualLyricsInput(event.target.value)}
-                                placeholder="Paste lyrics here, one line per row..."
-                                className="min-h-36 w-full rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                              />
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Button color="primary" variant="solid" onPress={handleApplyManualLyrics}>
-                                  Apply & Sync
-                                </Button>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {analysisResults?.beats?.length ? 'Uses beat/chord anchors for timing sync.' : 'Uses even timing until beats are available.'}
-                                </span>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Manual Lyrics</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-300">
+                                  {analysisResults?.beats?.length
+                                    ? 'Sync uses detected song start and beat/chord anchors.'
+                                    : 'Sync uses even timing until beat anchors are available.'}
+                                </p>
                               </div>
+                              <Button
+                                color="default"
+                                variant="flat"
+                                onPress={() => setIsManualLyricsEditorOpen((open) => !open)}
+                              >
+                                {isManualLyricsEditorOpen ? 'Hide Editor' : (lyrics?.lines?.length ? 'Edit Manual Lyrics' : 'Add Manual Lyrics')}
+                              </Button>
                             </div>
+
+                            {isManualLyricsEditorOpen && (
+                              <div className="mt-3 flex flex-col gap-2">
+                                <textarea
+                                  value={manualLyricsInput}
+                                  onChange={(event) => setManualLyricsInput(event.target.value)}
+                                  placeholder="Paste lyrics here, one line per row..."
+                                  className="min-h-36 w-full rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                />
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Button color="primary" variant="solid" onPress={handleApplyManualLyrics}>
+                                    Apply & Sync
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           <LyricsSectionDyn
