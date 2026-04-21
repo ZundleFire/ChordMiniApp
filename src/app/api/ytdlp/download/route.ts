@@ -16,11 +16,14 @@ import {
   matchesLocalAudioVideoId,
 } from '@/services/storage/localAudioStorageService';
 
-export const maxDuration = 300;
+export const maxDuration = 120; // 2 minutes - aggressive timeout to prevent 502 errors
 
 // Allow yt-dlp in production when explicitly configured via NEXT_PUBLIC_AUDIO_STRATEGY
 const isDevelopment = process.env.NODE_ENV === 'development';
 const allowYtDlpInProduction = process.env.NEXT_PUBLIC_AUDIO_STRATEGY === 'ytdlp';
+
+// yt-dlp timeout - shorter than maxDuration to ensure clean error response
+const YTDLP_TIMEOUT_MS = 90000; // 90 seconds
 
 function isAllowedProductionImportUrl(url: string): boolean {
   try {
@@ -99,13 +102,22 @@ async function downloadAudio(
   format: string = 'mp3'
 ): Promise<DownloadResult> {
   return new Promise(async (resolve) => {
+    let isResolved = false;
+
+    const resolveOnce = (result: DownloadResult) => {
+      if (!isResolved) {
+        isResolved = true;
+        resolve(result);
+      }
+    };
+
     try {
       // Reuse an existing local file before invoking yt-dlp again.
       if (requestedVideoId) {
         const existingFile = await findExistingLocalAudioFile(requestedVideoId);
         if (existingFile) {
           console.log(`♻️ Reusing existing local audio file for ${requestedVideoId}: ${existingFile.filename}`);
-          resolve({
+          resolveOnce({
             success: true,
             filename: existingFile.filename,
             audioUrl: existingFile.audioUrl,
@@ -131,6 +143,7 @@ async function downloadAudio(
         '--no-warnings',
         '--restrict-filenames', // Use safe filenames
         '--print', 'after_move:filepath', // Print the final file path
+        '--socket-timeout', '10', // 10 second socket timeout for network requests
         url
       ];
 
@@ -141,6 +154,7 @@ async function downloadAudio(
       let stderr = '';
       let stdout = '';
       let finalFilePath = '';
+      let processKilled = false;
 
       ytdlp.stdout.on('data', (data) => {
         const output = data.toString().trim();
@@ -159,6 +173,8 @@ async function downloadAudio(
       });
 
       ytdlp.on('close', async (code) => {
+        if (processKilled) return;
+        
         if (code === 0) {
           try {
             let audioFile = '';
@@ -212,7 +228,7 @@ async function downloadAudio(
               console.log(`   🔗 URL: ${audioUrl}`);
               console.log(`   📊 Size: ${(stats.size / 1024 / 1024).toFixed(2)}MB`);
 
-              resolve({
+              resolveOnce({
                 success: true,
                 filename: audioFile,
                 audioUrl: audioUrl,
@@ -232,21 +248,21 @@ async function downloadAudio(
                 console.error(`❌ Debug utilities failed: ${debugError}`);
               }
 
-              resolve({
+              resolveOnce({
                 success: false,
                 error: 'Downloaded audio file not found. Check yt-dlp output and debug information above.'
               });
             }
           } catch (fileError) {
             console.error('❌ File handling error:', fileError);
-            resolve({
+            resolveOnce({
               success: false,
               error: `Failed to process downloaded file: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`
             });
           }
         } else {
           console.error('❌ yt-dlp download failed:', stderr);
-          resolve({
+          resolveOnce({
             success: false,
             error: stderr || `yt-dlp exited with code ${code}`
           });
@@ -255,24 +271,31 @@ async function downloadAudio(
 
       ytdlp.on('error', (error) => {
         console.error('❌ yt-dlp spawn error:', error);
-        resolve({
+        resolveOnce({
           success: false,
           error: 'yt-dlp is not installed or not available in PATH. Please install yt-dlp for development.'
         });
       });
 
-      // Timeout after 5 minutes
+      // Strict timeout - ensures we always respond before Next.js times out
+      // Kill process and respond with error if exceeded
       setTimeout(() => {
-        ytdlp.kill();
-        resolve({
-          success: false,
-          error: 'Audio download timed out (5 minutes)'
-        });
-      }, 300000);
+        if (!isResolved) {
+          console.error(`❌ yt-dlp download timeout after ${YTDLP_TIMEOUT_MS / 1000}s`);
+          if (!processKilled) {
+            processKilled = true;
+            ytdlp.kill('SIGKILL');
+          }
+          resolveOnce({
+            success: false,
+            error: `Audio download timed out (${YTDLP_TIMEOUT_MS / 1000}s limit). This URL may not be supported or requires authentication.`
+          });
+        }
+      }, YTDLP_TIMEOUT_MS);
 
     } catch (error) {
       console.error('❌ Download setup error:', error);
-      resolve({
+      resolveOnce({
         success: false,
         error: error instanceof Error ? error.message : 'Download setup failed'
       });

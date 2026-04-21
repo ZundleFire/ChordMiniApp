@@ -267,56 +267,68 @@ function LocalAudioAnalyzePageInner() {
         error: null,
       }));
 
-      const downloadResponse = await fetch('/api/ytdlp/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: sourceUrl,
-          format: 'mp3',
-        }),
-      });
+      // Create an AbortController with 2-minute timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes
 
-      const downloadData = await downloadResponse.json();
+      try {
+        const downloadResponse = await fetch('/api/ytdlp/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: sourceUrl,
+            format: 'mp3',
+          }),
+          signal: controller.signal,
+        });
 
-      if (!downloadResponse.ok || !downloadData?.success || !downloadData?.audioUrl) {
-        throw new Error(downloadData?.error || 'Unable to import audio from link');
-      }
+        clearTimeout(timeoutId);
 
-      const importedAudioResponse = await fetch(downloadData.audioUrl);
-      if (!importedAudioResponse.ok) {
-        throw new Error('Imported audio file could not be loaded');
-      }
+        const downloadData = await downloadResponse.json();
 
-      const blob = await importedAudioResponse.blob();
-      const inferredName = downloadData.filename || `imported-audio-${Date.now()}.mp3`;
-      const file = new File([blob], inferredName, { type: blob.type || 'audio/mpeg' });
-      setAudioFile(file);
-
-      if (audioRef.current) {
-        if (objectUrlRef.current) {
-          try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
-          objectUrlRef.current = null;
+        if (!downloadResponse.ok || !downloadData?.success || !downloadData?.audioUrl) {
+          throw new Error(downloadData?.error || 'Unable to import audio from link');
         }
 
-        const objectUrl = URL.createObjectURL(file);
-        objectUrlRef.current = objectUrl;
-        audioRef.current.src = objectUrl;
-        audioRef.current.load();
+        const importedAudioResponse = await fetch(downloadData.audioUrl);
+        if (!importedAudioResponse.ok) {
+          throw new Error('Imported audio file could not be loaded');
+        }
+
+        const blob = await importedAudioResponse.blob();
+        const inferredName = downloadData.filename || `imported-audio-${Date.now()}.mp3`;
+        const file = new File([blob], inferredName, { type: blob.type || 'audio/mpeg' });
+        setAudioFile(file);
+
+        if (audioRef.current) {
+          if (objectUrlRef.current) {
+            try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
+            objectUrlRef.current = null;
+          }
+
+          const objectUrl = URL.createObjectURL(file);
+          objectUrlRef.current = objectUrl;
+          audioRef.current.src = objectUrl;
+          audioRef.current.load();
+        }
+
+        setAudioProcessingState(prev => ({
+          ...prev,
+          isExtracting: false,
+          isExtracted: true,
+          audioUrl: downloadData.audioUrl,
+          error: null,
+        }));
+
+        addToast({
+          title: 'Audio imported',
+          description: 'Link imported successfully. Click Analyze to process this song.',
+          color: 'success',
+        });
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        throw fetchError;
       }
-
-      setAudioProcessingState(prev => ({
-        ...prev,
-        isExtracting: false,
-        isExtracted: true,
-        audioUrl: downloadData.audioUrl,
-        error: null,
-      }));
-
-      addToast({
-        title: 'Audio imported',
-        description: 'Link imported successfully. Click Analyze to process this song.',
-        color: 'success',
-      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to import audio from link';
       setAudioProcessingState(prev => ({
