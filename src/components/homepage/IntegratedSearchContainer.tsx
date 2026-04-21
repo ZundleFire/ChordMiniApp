@@ -121,7 +121,7 @@ const IntegratedSearchContainer: React.FC<IntegratedSearchContainerProps> = ({
                 setError('');
                 setSearchError(null);
               }}
-              placeholder="Search for music or paste YouTube/Suno URL..."
+              placeholder="Search for music or paste YouTube/Suno/Google Drive URL..."
               className="w-full pl-4 pr-12 py-3 text-base bg-white dark:bg-dark-bg text-black dark:text-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-200 shadow-sm border-0 dark:shadow-gray-500"
             />
             {/* Search Icon Button */}

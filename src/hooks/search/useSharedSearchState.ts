@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiPost } from '@/config/api';
 import { buildAnalyzePageUrl } from '@/utils/analyzeRouteUtils';
 import { normalizeThumbnailUrl, pickPreferredChannelTitle } from '@/utils/youtubeMetadata';
+import { normalizeGoogleDriveAudioSource, isGoogleDriveUrl } from '@/utils/googleDriveUrl';
 
 // YouTube search result interface
 interface YouTubeSearchResult {
@@ -31,6 +32,19 @@ export const useSharedSearchState = () => {
     const trimmed = input.trim();
     const sunoPattern = /^https?:\/\/(?:www\.)?suno\.com\/s\/[A-Za-z0-9_-]+\/?(?:\?.*)?$/i;
     return sunoPattern.test(trimmed) ? trimmed : null;
+  }, []);
+
+  const extractGoogleDriveUrl = useCallback((input: string): string | null => {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (!isGoogleDriveUrl(trimmed)) {
+      return null;
+    }
+
+    return normalizeGoogleDriveAudioSource(trimmed);
   }, []);
 
   // Extract video ID from URL or direct ID
@@ -72,8 +86,8 @@ export const useSharedSearchState = () => {
       return;
     }
 
-    // Suno links are handled on submit (import flow), not via YouTube search results.
-    if (extractSunoUrl(query)) {
+    // Source links are handled on submit (import flow), not via YouTube search results.
+    if (extractSunoUrl(query) || extractGoogleDriveUrl(query)) {
       setSearchResults([]);
       setSearchError(null);
       return;
@@ -133,7 +147,7 @@ export const useSharedSearchState = () => {
         setIsSearching(false);
       }
     }, 400); // 400ms debounce delay for optimal UX
-  }, [extractVideoId]);
+  }, [extractGoogleDriveUrl, extractSunoUrl, extractVideoId]);
 
   // Handle form submission (Enter key)
   const handleSearch = useCallback(async (e: React.FormEvent) => {
@@ -184,9 +198,18 @@ export const useSharedSearchState = () => {
       return;
     }
 
+    const googleDriveUrl = extractGoogleDriveUrl(searchQuery);
+    if (googleDriveUrl) {
+      const target = new URL('/analyze', window.location.origin);
+      target.searchParams.set('sourceUrl', googleDriveUrl);
+      target.searchParams.set('sourceType', 'google-drive');
+      router.push(`${target.pathname}?${target.searchParams.toString()}`);
+      return;
+    }
+
     // For search queries, perform the search
     await performSearch(searchQuery);
-  }, [searchQuery, extractVideoId, extractSunoUrl, router, performSearch, setIsSearching, setSearchError]);
+  }, [searchQuery, extractGoogleDriveUrl, extractVideoId, extractSunoUrl, router, performSearch, setIsSearching, setSearchError]);
 
   // Handle video selection from search results
   const handleVideoSelect = useCallback((videoId: string, title?: string, metadata?: YouTubeSearchResult) => {
@@ -204,7 +227,8 @@ export const useSharedSearchState = () => {
       // Check if it's not a direct YouTube URL or video ID
       const videoId = extractVideoId(searchQuery);
       const sunoUrl = extractSunoUrl(searchQuery);
-      if (!videoId && !sunoUrl) {
+      const googleDriveUrl = extractGoogleDriveUrl(searchQuery);
+      if (!videoId && !sunoUrl && !googleDriveUrl) {
         // Trigger debounced search for search queries
         performSearch(searchQuery);
       }
@@ -213,7 +237,7 @@ export const useSharedSearchState = () => {
       setSearchResults([]);
       setSearchError(null);
     }
-  }, [searchQuery, performSearch, extractVideoId, extractSunoUrl]);
+  }, [searchQuery, performSearch, extractGoogleDriveUrl, extractVideoId, extractSunoUrl]);
 
   // Update search query (synchronized across all components)
   const updateSearchQuery = useCallback((query: string) => {

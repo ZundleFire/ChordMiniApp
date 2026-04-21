@@ -104,6 +104,7 @@ import MelodyTranscriptionStatusToast from '@/components/analysis/MelodyTranscri
 import { FavoritesButton } from '@/components/common/FavoritesButton';
 import { offloadUploadService } from '@/services/storage/offloadUploadService';
 import { buildAudioProxyUrl } from '@/utils/audioProxyUrl';
+import { isGoogleDriveUrl, normalizeGoogleDriveAudioSource } from '@/utils/googleDriveUrl';
 
 function LocalAudioAnalyzePageInner() {
   const searchParams = useSearchParams();
@@ -500,7 +501,15 @@ function LocalAudioAnalyzePageInner() {
 
   useEffect(() => {
     const sourceUrl = searchParams.get('sourceUrl');
+    const sourceType = searchParams.get('sourceType');
+    const sourceTitle = searchParams.get('title') || undefined;
     if (!sourceUrl || audioFile || isImportingSource || audioProcessingState.isExtracted) {
+      return;
+    }
+
+    const isGoogleDriveSource = sourceType === 'google-drive' || isGoogleDriveUrl(sourceUrl);
+    if (isGoogleDriveSource) {
+      void importAudioFromDirectUrl(normalizeGoogleDriveAudioSource(sourceUrl), sourceTitle);
       return;
     }
 
