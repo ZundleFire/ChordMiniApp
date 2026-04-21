@@ -82,6 +82,16 @@ export default function FavoritesPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
                     Added {new Date(track.addedAt.toDate?.() || 0).toLocaleDateString()}
                   </p>
+                  {track.audioUrl && (
+                    <div className="mb-3">
+                      <audio
+                        controls
+                        preload="none"
+                        src={track.audioUrl}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
                   <Button
                     color="danger"
                     variant="flat"

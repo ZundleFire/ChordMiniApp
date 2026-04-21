@@ -22,6 +22,8 @@ export interface FavoriteTrack {
   channelTitle: string;
   thumbnail: string;
   duration: number;
+  audioUrl?: string;
+  sourceType?: 'youtube' | 'suno' | 'local-upload';
   addedAt: Timestamp;
 }
 

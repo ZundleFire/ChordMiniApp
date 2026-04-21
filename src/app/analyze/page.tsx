@@ -101,6 +101,8 @@ import { useSheetSageBackendAvailability } from '@/hooks/sheetsage/useSheetSageB
 import { getSafeBeatModel, getSafeChordModel } from '@/utils/modelFiltering';
 import { MAX_ANALYSIS_DURATION_MINUTES, getAnalysisDurationLimitReason } from '@/utils/analysisDurationLimit';
 import MelodyTranscriptionStatusToast from '@/components/analysis/MelodyTranscriptionStatusToast';
+import { FavoritesButton } from '@/components/common/FavoritesButton';
+import { offloadUploadService } from '@/services/storage/offloadUploadService';
 
 function LocalAudioAnalyzePageInner() {
   const searchParams = useSearchParams();
@@ -113,9 +115,13 @@ function LocalAudioAnalyzePageInner() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [lyricSearchTitle, setLyricSearchTitle] = useState('');
   const [lyricSearchArtist, setLyricSearchArtist] = useState('');
+  const [manualLyricsInput, setManualLyricsInput] = useState('');
   const [isImportingSource, setIsImportingSource] = useState(false);
+  const [persistentAudioUrl, setPersistentAudioUrl] = useState<string | null>(null);
+  const [isPersistingAudio, setIsPersistingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const persistRequestIdRef = useRef(0);
   const durationLimitToastShownRef = useRef(false);
 
   const { lyrics, completeLyricsTranscription } = useLyricsState();
@@ -202,6 +208,81 @@ function LocalAudioAnalyzePageInner() {
       console.error('Manual lyrics search failed', e);
     }
   }, [lyricSearchArtist, lyricSearchTitle, normalizeLyricsResponse, completeLyricsTranscription]);
+
+  const localFavoriteId = useMemo(() => {
+    if (!audioFile) return null;
+    const safeName = audioFile.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `local-${safeName}-${audioFile.size}-${audioFile.lastModified}`;
+  }, [audioFile]);
+
+  const handleApplyManualLyrics = useCallback(() => {
+    const text = manualLyricsInput.trim();
+    if (!text) {
+      addToast({
+        title: 'No lyrics entered',
+        description: 'Paste lyrics first, then click Apply & Sync.',
+        color: 'warning',
+      });
+      return;
+    }
+
+    const lyricLines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (lyricLines.length === 0) {
+      addToast({
+        title: 'No valid lines found',
+        description: 'Please enter at least one non-empty lyric line.',
+        color: 'warning',
+      });
+      return;
+    }
+
+    const beatTimes = ((analysisResults?.beats || []) as Array<number | { time?: number }>)
+      .map((beat) => (typeof beat === 'number' ? beat : beat?.time))
+      .filter((time): time is number => typeof time === 'number' && Number.isFinite(time) && time >= 0)
+      .sort((a, b) => a - b);
+
+    const totalDuration = duration > 0 ? duration : Math.max(lyricLines.length * 2, 8);
+
+    const lines = lyricLines.map((line, index) => {
+      if (beatTimes.length >= 2) {
+        const startIdx = Math.min(
+          beatTimes.length - 1,
+          Math.floor((index / lyricLines.length) * (beatTimes.length - 1))
+        );
+        const endIdx = Math.min(
+          beatTimes.length - 1,
+          Math.floor(((index + 1) / lyricLines.length) * (beatTimes.length - 1))
+        );
+
+        const startTime = beatTimes[startIdx];
+        const fallbackEnd = startTime + 2;
+        const endCandidate = beatTimes[Math.max(endIdx, startIdx + 1)] ?? fallbackEnd;
+        const endTime = endCandidate > startTime ? endCandidate : fallbackEnd;
+
+        return { startTime, endTime, text: line };
+      }
+
+      const startTime = (index / lyricLines.length) * totalDuration;
+      const endTime = ((index + 1) / lyricLines.length) * totalDuration;
+      return {
+        startTime,
+        endTime: endTime > startTime ? endTime : startTime + 1,
+        text: line,
+      };
+    });
+
+    completeLyricsTranscription({ lines });
+    setActiveTab('lyricsChords');
+    addToast({
+      title: 'Lyrics added',
+      description: 'Manual lyrics applied and aligned to beat/chord anchors.',
+      color: 'success',
+    });
+  }, [analysisResults?.beats, completeLyricsTranscription, duration, manualLyricsInput]);
 
 
   // Use processing context
@@ -657,7 +738,13 @@ function LocalAudioAnalyzePageInner() {
     if (!files || files.length === 0) return;
 
     const file = files[0];
+    const persistRequestId = Date.now();
+    persistRequestIdRef.current = persistRequestId;
+
     setAudioFile(file);
+    setPersistentAudioUrl(null);
+    setIsPersistingAudio(true);
+    setManualLyricsInput('');
 
     // Reset states
     setAudioProcessingState({
@@ -683,7 +770,33 @@ function LocalAudioAnalyzePageInner() {
       objectUrlRef.current = u;
       audioRef.current.src = u;
       audioRef.current.load();
+
+      setAudioProcessingState(prev => ({
+        ...prev,
+        audioUrl: u,
+      }));
     }
+
+    void (async () => {
+      try {
+        const persistedUrl = await offloadUploadService.uploadToOffload(file);
+        if (persistRequestIdRef.current !== persistRequestId) {
+          return;
+        }
+
+        setPersistentAudioUrl(persistedUrl);
+        setAudioProcessingState(prev => ({
+          ...prev,
+          audioUrl: persistedUrl,
+        }));
+      } catch (error) {
+        console.warn('Local audio persistence failed, continuing with in-memory URL:', error);
+      } finally {
+        if (persistRequestIdRef.current === persistRequestId) {
+          setIsPersistingAudio(false);
+        }
+      }
+    })();
   };
 
   // Process and analyze the audio file
@@ -712,7 +825,7 @@ function LocalAudioAnalyzePageInner() {
       setStatusMessage('Recognizing chords and synchronizing with beats...');
 
       // Use existing object URL from audio element or create new one (track and cleanup)
-      let audioUrl = audioRef.current?.src;
+      let audioUrl = persistentAudioUrl || audioRef.current?.src;
       if (!audioUrl) {
         if (objectUrlRef.current) {
           try { URL.revokeObjectURL(objectUrlRef.current); } catch {}
@@ -1232,7 +1345,7 @@ const simplifiedChordGridData = useMemo(() => {
                     <ResultsTabs
                       activeTab={activeTab}
                       setActiveTab={setActiveTab}
-                      showLyrics={false}
+                      showLyrics={Boolean(lyrics?.lines?.length)}
                       hasCachedLyrics={false}
                     />
                   </div>
@@ -1262,8 +1375,30 @@ const simplifiedChordGridData = useMemo(() => {
                   >
                     {audioProcessingState.isExtracting ? 'Processing...' : 'Analyze Audio'}
                   </Button>
+
+                  {audioFile && localFavoriteId && (
+                    <FavoritesButton
+                      videoId={localFavoriteId}
+                      title={audioFile.name}
+                      channelTitle="Local upload"
+                      thumbnail=""
+                      duration={duration || 0}
+                      audioUrl={persistentAudioUrl || undefined}
+                      sourceType="local-upload"
+                    />
+                  )}
                 </div>
               </div>
+
+              {audioFile && (
+                <div className="mb-3 text-xs text-gray-600 dark:text-gray-300">
+                  {isPersistingAudio
+                    ? 'Persisting uploaded audio to cloud storage...'
+                    : persistentAudioUrl
+                      ? 'Uploaded audio is persisted and share-ready.'
+                      : 'Using local-only audio URL (not shareable across devices).'}
+                </div>
+              )}
 
               {analysisDurationLimitReason && (
                 <div className="mb-4 rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800">
@@ -1455,6 +1590,46 @@ const simplifiedChordGridData = useMemo(() => {
                         sheetSageResult={sheetSageResult}
                         showMelodicOverlay={isMelodicTranscriptionPlaybackEnabled && hasSheetSageNotes}
                       />
+                    )}
+
+                    {activeTab === 'lyricsChords' && (
+                      <ScrollableTabContainer variant="plain" heightClass="h-[60vh] md:h-[66vh]">
+                        <div className="space-y-4">
+                          <div className="rounded-xl border border-default-200 bg-default-50/60 p-3">
+                            <div className="flex flex-col gap-2">
+                              <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Manual Lyrics</p>
+                              <p className="text-xs text-gray-600 dark:text-gray-300">Paste lyrics line-by-line, then apply to auto-align against detected beat/chord anchors.</p>
+                              <textarea
+                                value={manualLyricsInput}
+                                onChange={(event) => setManualLyricsInput(event.target.value)}
+                                placeholder="Paste lyrics here, one line per row..."
+                                className="min-h-36 w-full rounded-lg border border-default-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                              />
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button color="primary" variant="solid" onPress={handleApplyManualLyrics}>
+                                  Apply & Sync
+                                </Button>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {analysisResults?.beats?.length ? 'Uses beat/chord anchors for timing sync.' : 'Uses even timing until beats are available.'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <LyricsSectionDyn
+                            showLyrics={Boolean(lyrics)}
+                            lyrics={lyrics}
+                            hasCachedLyrics={false}
+                            currentTime={currentTime}
+                            fontSize={fontSize}
+                            theme={theme}
+                            analysisResults={analysisResults}
+                            onFontSizeChange={setFontSize}
+                            segmentationData={segmentationData}
+                            sequenceCorrections={sequenceCorrections}
+                          />
+                        </div>
+                      </ScrollableTabContainer>
                     )}
 
                   </div>

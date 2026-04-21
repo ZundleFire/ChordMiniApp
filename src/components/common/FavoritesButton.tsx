@@ -11,6 +11,8 @@ interface FavoritesButtonProps {
   channelTitle: string;
   thumbnail: string;
   duration: number;
+  audioUrl?: string;
+  sourceType?: 'youtube' | 'suno' | 'local-upload';
   className?: string;
 }
 
@@ -20,6 +22,8 @@ export function FavoritesButton({
   channelTitle,
   thumbnail,
   duration,
+  audioUrl,
+  sourceType,
   className = '',
 }: FavoritesButtonProps) {
   const { isAuthenticated } = useUser();
@@ -48,6 +52,8 @@ export function FavoritesButton({
           channelTitle,
           thumbnail,
           duration,
+          audioUrl,
+          sourceType,
         };
         await addToFavorites(track);
       }
