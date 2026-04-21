@@ -427,13 +427,47 @@ export const useProcessedLyrics = ({
       }
     });
 
+    // Coverage safety net: guarantee every detected chord event appears in at least one
+    // rendered marker list. Time-range checks alone can miss events when section ranges
+    // exist without actual chord markers.
+    const representedChordMarkers = sortedItems.flatMap((item) =>
+      (item.chords || []).map((marker) => ({
+        time: marker.time,
+        chord: normalizeChordForDedup(marker.chord),
+      }))
+    );
+
+    const hasRepresentedChord = (chord: BeatAlignedChordEvent): boolean => {
+      const normalized = normalizeChordForDedup(chord.chord);
+      return representedChordMarkers.some((marker) =>
+        marker.chord === normalized && Math.abs(marker.time - chord.time) <= 0.08
+      );
+    };
+
+    memoizedChords.forEach((chord) => {
+      if (!hasRepresentedChord(chord)) {
+        chordsToAdd.push(chord);
+      }
+    });
+
+    // Keep stable order and remove duplicates before grouping.
+    const seenChordKeys = new Set<string>();
+    const uniqueChordsToAdd = chordsToAdd
+      .sort((a, b) => a.time - b.time)
+      .filter((chord) => {
+        const key = `${normalizeChordForDedup(chord.chord)}@${chord.time.toFixed(3)}`;
+        if (seenChordKeys.has(key)) return false;
+        seenChordKeys.add(key);
+        return true;
+      });
+
     // Group consecutive uncovered chords into condensed sections
-    if (chordsToAdd.length > 0) {
+    if (uniqueChordsToAdd.length > 0) {
       let currentGroup: BeatAlignedChordEvent[] = [];
       let lastChordTime = -1;
       const chordGapThreshold = 8;
 
-      chordsToAdd.forEach((chord, index) => {
+      uniqueChordsToAdd.forEach((chord, index) => {
         if (lastChordTime === -1 || chord.time - lastChordTime <= chordGapThreshold) {
           currentGroup.push(chord);
         } else {
@@ -447,7 +481,7 @@ export const useProcessedLyrics = ({
         lastChordTime = chord.time;
 
         // Handle the last group
-        if (index === chordsToAdd.length - 1 && currentGroup.length > 0) {
+        if (index === uniqueChordsToAdd.length - 1 && currentGroup.length > 0) {
           const chordOnlySection = createChordOnlySection(currentGroup, true);
           allItems.push(chordOnlySection as ProcessedLyricLine);
         }

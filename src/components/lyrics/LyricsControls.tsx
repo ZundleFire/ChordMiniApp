@@ -18,6 +18,8 @@ interface LanguageOption {
 interface LyricsControlsProps {
   fontSize: number;
   onFontSizeChange: (size: number) => void;
+  onDownloadPdf: () => void;
+  isDownloadingPdf: boolean;
   darkMode: boolean;
   processedLyricsLength: number;
   isTranslating: boolean;
@@ -39,6 +41,8 @@ interface LyricsControlsProps {
 export const LyricsControls: React.FC<LyricsControlsProps> = ({
   fontSize,
   onFontSizeChange,
+  onDownloadPdf,
+  isDownloadingPdf,
   darkMode,
   processedLyricsLength,
   isTranslating,
@@ -78,6 +82,18 @@ export const LyricsControls: React.FC<LyricsControlsProps> = ({
         </div>
 
         {/* Translation button – HeroUI Popover */}
+        <Button
+          size="sm"
+          variant="flat"
+          color="secondary"
+          isDisabled={!processedLyricsLength || isDownloadingPdf}
+          isLoading={isDownloadingPdf}
+          onPress={onDownloadPdf}
+          className="font-medium"
+        >
+          {isDownloadingPdf ? 'Exporting…' : 'PDF'}
+        </Button>
+
         <Popover
           isOpen={isLanguageMenuOpen && !isTranslating}
           onOpenChange={setIsLanguageMenuOpen}

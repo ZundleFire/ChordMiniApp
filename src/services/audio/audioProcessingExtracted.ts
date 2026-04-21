@@ -328,24 +328,14 @@ export const transcribeLyricsWithAI = async (deps: AudioProcessingServiceDepende
     setIsTranscribingLyrics(true);
     setLyricsError(null);
 
-    // Get the user's lyrics transcription API key (stored under existing key slot for compatibility)
-    const { getMusicAiApiKeyWithValidation } = await import('@/utils/apiKeyUtils');
-    const keyValidation = await getMusicAiApiKeyWithValidation();
-
-    if (!keyValidation.isValid || !keyValidation.apiKey) {
-      setLyricsError(keyValidation.error || 'Transcription API key not found. Please add your API key in settings.');
-      setIsTranscribingLyrics(false);
-      return;
-    }
-
-    const assemblyAiApiKey = keyValidation.apiKey;
-
     const response = await apiPost('TRANSCRIBE_LYRICS', {
       videoId,
       audioPath: audioProcessingState.audioUrl, // Fixed: use audioPath instead of audioUrl
       checkCacheOnly: false, // Explicit: this is a transcription request, not cache-only
       forceRefresh: false,
-      assemblyAiApiKey
+      title: titleFromSearch,
+      artist: channelFromSearch,
+      searchQuery: [titleFromSearch, channelFromSearch].filter(Boolean).join(' - '),
     });
 
     const data = await response.json();
@@ -356,10 +346,10 @@ export const transcribeLyricsWithAI = async (deps: AudioProcessingServiceDepende
       setHasCachedLyrics(false);
       setActiveTab('lyricsChords');
     } else {
-      throw new Error(data?.error || 'AssemblyAI returned no synchronized lyric lines');
+      throw new Error(data?.error || 'Free synchronized lyrics source returned no timed lyric lines');
     }
   } catch (error) {
-    console.error('AssemblyAI transcription failed, attempting synchronized fallback lyrics:', error);
+    console.error('Free synchronized lyrics lookup failed, attempting synchronized fallback lyrics:', error);
 
     const fallbackQuery = [titleFromSearch, channelFromSearch].filter(Boolean).join(' - ');
     try {
@@ -388,7 +378,7 @@ export const transcribeLyricsWithAI = async (deps: AudioProcessingServiceDepende
         setShowLyrics(true);
         setHasCachedLyrics(true);
         setActiveTab('lyricsChords');
-        setLyricsError('AssemblyAI failed; using synchronized fallback lyrics.');
+        setLyricsError('Primary free source failed; using synchronized fallback lyrics.');
         return;
       }
     } catch (fallbackError) {

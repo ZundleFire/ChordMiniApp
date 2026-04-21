@@ -6,7 +6,7 @@
  * as the song plays, with unplayed lyrics in gray and played lyrics in blue.
  */
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 
 import { useApiKeys } from '@/hooks/settings/useApiKeys';
 import { useProcessedLyrics } from '@/hooks/lyrics/useProcessedLyrics';
@@ -72,6 +72,7 @@ const LeadSheetDisplay: React.FC<LeadSheetProps> = React.memo(({
 }) => {
   // Ref for the container element (used for auto-scrolling)
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // API keys hook for accessing user's Gemini API key
   const { getApiKey } = useApiKeys();
@@ -166,6 +167,75 @@ const LeadSheetDisplay: React.FC<LeadSheetProps> = React.memo(({
     memoizedCharacterArrays.clear();
   }, [processedAndMergedLyrics, memoizedCharacterArrays]);
 
+  const handleDownloadPdf = useCallback(async () => {
+    if (isDownloadingPdf || !processedAndMergedLyrics?.length) return;
+
+    setIsDownloadingPdf(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'pt',
+        format: 'letter',
+        compress: true,
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const marginX = 40;
+      const marginY = 44;
+      const contentWidth = pageWidth - marginX * 2;
+      let y = marginY;
+
+      const ensureSpace = (height: number) => {
+        if (y + height <= pageHeight - marginY) return;
+        pdf.addPage();
+        y = marginY;
+      };
+
+      const renderLine = (text: string, opts?: { fontSize?: number; style?: 'normal' | 'bold'; indent?: number }) => {
+        const fontSize = opts?.fontSize ?? 11;
+        const style = opts?.style ?? 'normal';
+        const indent = opts?.indent ?? 0;
+        pdf.setFont('courier', style);
+        pdf.setFontSize(fontSize);
+
+        const wrapped = pdf.splitTextToSize(text || ' ', contentWidth - indent);
+        const lineHeight = fontSize + 3;
+        ensureSpace(wrapped.length * lineHeight);
+        wrapped.forEach((row: string) => {
+          pdf.text(row, marginX + indent, y);
+          y += lineHeight;
+        });
+      };
+
+      renderLine('ChordMini - Lyrics & Chords', { fontSize: 14, style: 'bold' });
+      y += 8;
+
+      processedAndMergedLyrics.forEach((line) => {
+        const sectionLabel = line.sectionLabel || (line.isInstrumental ? 'Instrumental' : null);
+        if (sectionLabel) {
+          renderLine(`[${sectionLabel}]`, { fontSize: 11, style: 'bold' });
+        }
+
+        const sortedChords = [...(line.chords || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+        if (sortedChords.length > 0) {
+          const chordText = sortedChords.map((chord) => chord.chord).join('   ');
+          renderLine(chordText, { fontSize: 10, style: 'bold', indent: 6 });
+        }
+
+        renderLine(line.text || ' ', { fontSize: 11, style: 'normal', indent: 6 });
+        y += 6;
+      });
+
+      pdf.save('lyrics-and-chords.pdf');
+    } catch (error) {
+      console.error('Failed to export lyrics/chords PDF:', error);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  }, [isDownloadingPdf, processedAndMergedLyrics]);
+
   // If no lyrics are available, show a message
   if (!processedAndMergedLyrics || processedAndMergedLyrics.length === 0) {
     return (
@@ -181,6 +251,8 @@ const LeadSheetDisplay: React.FC<LeadSheetProps> = React.memo(({
       <LyricsControls
         fontSize={fontSize}
         onFontSizeChange={onFontSizeChange}
+        onDownloadPdf={handleDownloadPdf}
+        isDownloadingPdf={isDownloadingPdf}
         darkMode={darkMode}
         processedLyricsLength={processedAndMergedLyrics?.length || 0}
         isTranslating={isTranslating}

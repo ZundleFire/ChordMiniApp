@@ -4,7 +4,6 @@ import React, { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { LyricsData, ChordMarker, SynchronizedLyrics } from '@/types/musicAiTypes';
 import { AnalysisResult } from '@/services/chord-analysis/chordRecognitionService';
-import { useApiKeys } from '@/hooks/settings/useApiKeys';
 import { SegmentationResult } from '@/types/chatbotTypes';
 import type { BeatInfo } from '@/services/audio/beatDetectionService';
 import { simplifyChord } from '@/utils/chordSimplification';
@@ -52,7 +51,6 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
   segmentationData = null,
   sequenceCorrections = null
 }) => {
-  const { isServiceAvailable, getServiceMessage } = useApiKeys();
   const { simplifyChords } = useSimplifySelector();
   const storeKeySignature = useKeySignature();
 
@@ -163,6 +161,30 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
   const snappedLyrics = useMemo(() => {
     if (!lyrics?.lines?.length) return { lines: [] } as LyricsData;
 
+    const clamp = (value: number, min: number, max: number): number =>
+      Math.min(Math.max(value, min), max);
+
+    const minDurationForLine = (text: string): number => {
+      const nonSpaceChars = (text || '').replace(/\s+/g, '').length;
+      return clamp(0.24 + nonSpaceChars * 0.032, 0.32, 2.8);
+    };
+
+    const getWordTimingBounds = (line: LyricsData['lines'][number]): { start: number; end: number } | null => {
+      const timings = line.wordTimings?.filter((wordTiming) =>
+        Number.isFinite(wordTiming.startTime)
+        && Number.isFinite(wordTiming.endTime)
+        && wordTiming.endTime >= wordTiming.startTime
+      );
+
+      if (!timings?.length) return null;
+
+      const start = Math.min(...timings.map((wordTiming) => wordTiming.startTime));
+      const end = Math.max(...timings.map((wordTiming) => wordTiming.endTime));
+
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+      return { start, end };
+    };
+
     // Primary anchors: chord change timestamps; fallback: beat timestamps
     const anchorTimes = beatAlignedChords?.length
       ? beatAlignedChords.map(c => c.time)
@@ -180,6 +202,26 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
         }))
       } as LyricsData;
     }
+
+    const nearestAnchor = (time: number): number => {
+      let best = anchorTimes[0];
+      let bestDist = Math.abs(best - time);
+
+      for (let i = 1; i < anchorTimes.length; i++) {
+        const dist = Math.abs(anchorTimes[i] - time);
+        if (dist < bestDist) {
+          best = anchorTimes[i];
+          bestDist = dist;
+        }
+      }
+
+      return best;
+    };
+
+    const softlySnapToAnchor = (time: number, maxDistance: number): number => {
+      const candidate = nearestAnchor(time);
+      return Math.abs(candidate - time) <= maxDistance ? candidate : time;
+    };
 
     // Collect all lyric boundary timestamps and sort for the two-pointer pass
     const queries: { lineIdx: number; isEnd: boolean; time: number }[] = [];
@@ -218,12 +260,25 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
 
     const epsilon = 1e-3;
     const snapped = lyrics.lines.map((line, i) => {
-      const [start, end_] = snappedBounds[i];
-      let end = end_;
+      const wordBounds = getWordTimingBounds(line);
+      let start = wordBounds?.start ?? snappedBounds[i][0];
+      let end = wordBounds?.end ?? snappedBounds[i][1];
+
+      // Preserve line-level rhythm from word timings; only nudge to anchors when very close.
+      if (wordBounds) {
+        start = softlySnapToAnchor(start, 0.14);
+        end = softlySnapToAnchor(end, 0.14);
+      }
+
+      const minDuration = minDurationForLine(line.text);
       if (end <= start) {
         const idx = lowerBound(start + epsilon);
-        end = idx < anchorTimes.length ? anchorTimes[idx] : start + 0.25;
+        end = idx < anchorTimes.length ? anchorTimes[idx] : start + minDuration;
       }
+      if (end < start + minDuration) {
+        end = start + minDuration;
+      }
+
       return { ...line, startTime: start, endTime: end, chords: [] };
     });
 
@@ -232,11 +287,21 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
       const prev = snapped[i - 1];
       const curr = snapped[i];
       if (curr.startTime < prev.endTime + epsilon) {
-        const idx = lowerBound(prev.endTime + epsilon);
-        curr.startTime = idx < anchorTimes.length ? anchorTimes[idx] : prev.endTime + epsilon;
-        if (curr.endTime <= curr.startTime) {
-          const afterIdx = lowerBound(curr.startTime + epsilon);
-          curr.endTime = afterIdx < anchorTimes.length ? anchorTimes[afterIdx] : curr.startTime + 0.25;
+        curr.startTime = prev.endTime + epsilon;
+      }
+
+      const minDuration = minDurationForLine(curr.text);
+      if (curr.endTime < curr.startTime + minDuration) {
+        const afterIdx = lowerBound(curr.startTime + epsilon);
+        const nextAnchor = afterIdx < anchorTimes.length ? anchorTimes[afterIdx] : curr.startTime + minDuration;
+        curr.endTime = Math.max(nextAnchor, curr.startTime + minDuration);
+      }
+
+      if (i < snapped.length - 1) {
+        const next = snapped[i + 1];
+        if (curr.endTime >= next.startTime - epsilon) {
+          const maxAllowedEnd = Math.max(curr.startTime + minDuration, next.startTime - epsilon);
+          curr.endTime = Math.min(curr.endTime, maxAllowedEnd);
         }
       }
     }
@@ -267,28 +332,16 @@ export const LyricsSection: React.FC<LyricsSectionProps> = ({
 
 
   if (!showLyrics) {
-    const musicAiAvailable = isServiceAvailable('musicAi');
-
     return (
-      <div className={`p-4 rounded-md transition-colors duration-300 ${
-        musicAiAvailable
-          ? 'bg-blue-100 dark:bg-blue-200 text-blue-700 dark:text-blue-900'
-          : 'bg-orange-100 dark:bg-orange-200 text-orange-700 dark:text-orange-900'
-      }`}>
+      <div className="p-4 rounded-md transition-colors duration-300 bg-blue-100 dark:bg-blue-200 text-blue-700 dark:text-blue-900">
         <p className="font-medium">
           {hasCachedLyrics ? "Cached Lyrics Available" : "Lyrics Not Transcribed"}
         </p>
         <p>
-          {!musicAiAvailable ? (
-            <>
-              {getServiceMessage('musicAi')}
-              <br />
-              <span className="text-sm">Go to Settings to add your Music.AI API key.</span>
-            </>
-          ) : hasCachedLyrics ? (
+          {hasCachedLyrics ? (
             "Cached lyrics are loading automatically. Click \"AI Transcribe\" to refresh or re-transcribe."
           ) : (
-            "Click the \"AI Transcribe\" button above to analyze the audio for lyrics. Lyrics transcription is now manual to give you control over when to process vocals."
+            "Timed lyrics are fetched automatically from free synchronized sources after analysis. If none are found, use \"AI Transcribe\" to retry lookup."
           )}
         </p>
       </div>

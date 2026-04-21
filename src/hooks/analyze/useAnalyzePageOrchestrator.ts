@@ -1015,9 +1015,6 @@ export function useAnalyzePageOrchestrator({
       autoLyricsRequestKeyRef.current = requestKey;
 
       try {
-        const { getMusicAiApiKey } = await import('@/utils/apiKeyUtils');
-        const assemblyAiApiKey = await getMusicAiApiKey();
-
         const response = await fetch('/api/transcribe-lyrics', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1026,7 +1023,9 @@ export function useAnalyzePageOrchestrator({
             audioPath: audioProcessingState.audioUrl,
             forceRefresh: false,
             checkCacheOnly: !shouldTranscribeNow,
-            ...(assemblyAiApiKey ? { assemblyAiApiKey } : {}),
+            title: titleFromSearch || undefined,
+            artist: channelFromSearch || undefined,
+            searchQuery: [channelFromSearch, titleFromSearch, videoId].filter(Boolean).join(' - '),
           }),
         });
 
@@ -1054,10 +1053,12 @@ export function useAnalyzePageOrchestrator({
     audioProcessingState.audioUrl,
     audioProcessingState.isAnalyzed,
     audioProcessingState.isExtracted,
+    channelFromSearch,
     lyrics?.lines?.length,
     setHasCachedLyrics,
     setLyrics,
     setShowLyrics,
+    titleFromSearch,
     videoId,
   ]);
 
