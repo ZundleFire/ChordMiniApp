@@ -133,7 +133,13 @@ export async function recognizeChordsWithRateLimit(
     }
     return chords;
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error) || 'Unknown error';
     console.error('Error in chord recognition with rate limiting:', error);
+    console.error('Error details:', { 
+      type: error instanceof Error ? error.constructor.name : typeof error,
+      message: errorMsg,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw error;
   }
 }

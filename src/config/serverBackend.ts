@@ -21,6 +21,10 @@ function isLocalUrl(candidateUrl: string | undefined): boolean {
 }
 
 export function getPythonApiUrl(): string {
+  // Used by server-side code to connect to Python backend for ML services
+  // In Docker: set PYTHON_API_URL=http://backend:8080 (container name and port)
+  // In Node: set PYTHON_API_URL=http://localhost:5001 (or wherever Python service is running)
+  // This is NOT the same as NEXT_PUBLIC_PYTHON_API_URL (which is for browser/client code)
   return process.env.PYTHON_API_URL || DEFAULT_PYTHON_API_URL;
 }
 

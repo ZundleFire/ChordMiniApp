@@ -34,10 +34,12 @@ services:
       - NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
       - NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID}
 
-      # API Configuration (Public)
+      # API Configuration
+      # Public (exposed to browser)
       - NEXT_PUBLIC_YOUTUBE_API_KEY=${NEXT_PUBLIC_YOUTUBE_API_KEY}
-      - NEXT_PUBLIC_PYTHON_API_URL=${PYTHON_API_URL:-http://backend:8080}
       - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3001}
+      # Server-side only (Python backend URL for chord/beat/key detection)
+      - PYTHON_API_URL=${PYTHON_API_URL:-http://backend:8080}
 
       # Feature Flags (Public)
       - NEXT_PUBLIC_AUDIO_STRATEGY=${NEXT_PUBLIC_AUDIO_STRATEGY:-ytdlp}

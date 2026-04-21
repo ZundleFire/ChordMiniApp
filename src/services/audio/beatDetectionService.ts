@@ -274,7 +274,13 @@ export async function detectBeatsWithRateLimit(
     return normalized;
 
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error) || 'Unknown error';
     console.error('Error in beat detection with rate limiting:', error);
+    console.error('Error details:', {
+      type: error instanceof Error ? error.constructor.name : typeof error,
+      message: errorMsg,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw error;
   }
 }

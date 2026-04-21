@@ -485,6 +485,7 @@ export async function analyzeAudioWithRateLimit(
           if (e.message.includes('too large')) throw new Error('Audio file is too large for beat detection. Try a shorter clip or the madmom detector.');
           if (e.message.includes('413')) throw new Error('Audio file size exceeds server limits. Please use a smaller file or try the madmom detector.');
           if (e.message.includes('timeout')) throw new Error('Beat detection timed out. Try a shorter clip or the madmom detector.');
+          if (e.message.includes('ECONNREFUSED') || e.message.includes('404') || e.message.includes('Forbidden')) throw new Error(`Beat detection failed: Backend service unavailable or not accessible. Check Python backend status.`);
           throw new Error(`Beat detection failed: ${e.message}`);
         }
         throw new Error(`Beat detection failed: ${String(e) || 'Unknown error'}`);
@@ -505,9 +506,11 @@ export async function analyzeAudioWithRateLimit(
           if (e.message.includes('too large')) throw new Error('Audio file is too large for chord recognition. Try a shorter clip.');
           if (e.message.includes('413')) throw new Error('Audio file size exceeds server limits for chord recognition. Please use a smaller file.');
           if (e.message.includes('timeout')) throw new Error('Chord recognition timed out. Try a shorter clip.');
+          if (e.message.includes('ECONNREFUSED') || e.message.includes('404') || e.message.includes('Forbidden')) throw new Error(`Chord recognition failed: Backend service unavailable or not accessible. Check Python backend status.`);
           throw new Error(`Chord recognition failed: ${e.message}`);
         }
-        throw new Error('Chord recognition failed with unknown error');
+        const errorMsg = String(e) || 'Unknown error';
+        throw new Error(`Chord recognition failed: ${errorMsg}`);
       }
     })()
   ]);
