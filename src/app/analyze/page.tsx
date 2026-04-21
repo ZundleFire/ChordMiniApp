@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { Suspense, useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@heroui/react';
 import { addToast } from '@heroui/react';
@@ -102,7 +102,7 @@ import { getSafeBeatModel, getSafeChordModel } from '@/utils/modelFiltering';
 import { MAX_ANALYSIS_DURATION_MINUTES, getAnalysisDurationLimitReason } from '@/utils/analysisDurationLimit';
 import MelodyTranscriptionStatusToast from '@/components/analysis/MelodyTranscriptionStatusToast';
 
-export default function LocalAudioAnalyzePage() {
+function LocalAudioAnalyzePageInner() {
   const searchParams = useSearchParams();
   const showSheetSage = true;
   useSheetSageBackendAvailability(showSheetSage);
@@ -1550,5 +1550,13 @@ const simplifiedChordGridData = useMemo(() => {
 
       </div>
     </div>
+  );
+}
+
+export default function LocalAudioAnalyzePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-dark-bg" />}>
+      <LocalAudioAnalyzePageInner />
+    </Suspense>
   );
 }
