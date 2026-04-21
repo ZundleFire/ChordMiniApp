@@ -1377,11 +1377,16 @@ export default function YouTubeVideoAnalyzePage() {
                         title: videoTitle || titleFromSearch || 'Untitled track',
                         channelTitle: channelFromSearch || 'Unknown channel',
                         thumbnail: thumbnailFromSearch || '',
-                        duration: Number.isFinite(duration) && duration > 0
-                          ? duration
-                          : (Number.isFinite(parseAnalysisDurationSeconds(durationFromSearch))
-                            ? parseAnalysisDurationSeconds(durationFromSearch)
-                            : 0),
+                        duration: (() => {
+                          if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+                            return duration;
+                          }
+
+                          const parsedDuration = parseAnalysisDurationSeconds(durationFromSearch);
+                          return typeof parsedDuration === 'number' && Number.isFinite(parsedDuration)
+                            ? parsedDuration
+                            : 0;
+                        })(),
                       }}
                     />
 
