@@ -98,7 +98,21 @@ export class AudioExtractionServiceSimplified {
       case 'ytdlp':
         // Allow yt-dlp in production when explicitly configured
         if (env.isDevelopment || process.env.NEXT_PUBLIC_AUDIO_STRATEGY === 'ytdlp') {
-          return await this.extractAudioWithYtDlp(videoMetadata, forceRedownload);
+          const ytdlpResult = await this.extractAudioWithYtDlp(videoMetadata, forceRedownload);
+          if (ytdlpResult.success) {
+            return ytdlpResult;
+          }
+
+          console.warn(`⚠️ yt-dlp strategy failed for ${videoMetadata.id}, falling back to yt-mp3-go: ${ytdlpResult.error}`);
+          const ytMp3Fallback = await this.extractAudioWithYtMp3Go(videoMetadata, forceRedownload);
+          if (ytMp3Fallback.success) {
+            return ytMp3Fallback;
+          }
+
+          return {
+            success: false,
+            error: `yt-dlp failed (${ytdlpResult.error || 'unknown'}) and yt-mp3-go fallback failed (${ytMp3Fallback.error || 'unknown'})`
+          };
         } else {
           return {
             success: false,

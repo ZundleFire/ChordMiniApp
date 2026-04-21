@@ -35,12 +35,16 @@ export function detectEnvironment(): EnvironmentConfig {
   const effectiveBaseUrl = isBrowser ? window.location.origin : envBaseUrl;
 
   // URL-based environment detection
-  const isLocalhost = effectiveBaseUrl.includes('localhost') || effectiveBaseUrl.includes('127.0.0.1');
+  const isLocalhostUrl = effectiveBaseUrl.includes('localhost') || effectiveBaseUrl.includes('127.0.0.1');
 
-  // Determine environment based on URL detection
-  const isDevelopment = isLocalhost || nodeEnv === 'development';
+  // Determine environment with server-safe precedence:
+  // - Server: trust NODE_ENV, not NEXT_PUBLIC_BASE_URL, to avoid production localhost misclassification
+  // - Browser: use origin and NODE_ENV
+  const isDevelopment = isBrowser
+    ? (isLocalhostUrl || nodeEnv === 'development')
+    : (nodeEnv === 'development');
   const isProduction = !isDevelopment;
-  const isVercel = isProduction && !isLocalhost; // Simplified Vercel detection
+  const isVercel = isProduction && !isLocalhostUrl; // Simplified Vercel detection
 
   // Get base URL for response
   let baseUrl = '';
@@ -64,7 +68,7 @@ export function detectEnvironment(): EnvironmentConfig {
       ['ytdlp', 'yt-mp3-go', 'ytdown-io'].includes(manualStrategy)) {
     strategy = manualStrategy as AudioProcessingStrategy;
     console.log(`🔧 Using manual audio strategy override: ${strategy}`);
-  } else if (isLocalhost) {
+  } else if (isDevelopment) {
     // For local development, use yt-dlp (most reliable for localhost)
     strategy = 'ytdlp';
   } else {
