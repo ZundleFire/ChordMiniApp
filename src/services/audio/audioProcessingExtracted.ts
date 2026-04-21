@@ -328,65 +328,6 @@ export const transcribeLyricsWithAI = async (deps: AudioProcessingServiceDepende
     setIsTranscribingLyrics(true);
     setLyricsError(null);
 
-    // Attempt free providers first (LRClib -> Genius fallback).
-    const fallbackQuery = [titleFromSearch, channelFromSearch].filter(Boolean).join(' - ');
-    try {
-      const fallbackResult = await searchLyricsWithFallback({
-        search_query: fallbackQuery || titleFromSearch || videoId,
-        prefer_synchronized: true,
-      });
-
-      if (fallbackResult.success) {
-        if (fallbackResult.has_synchronized && fallbackResult.synchronized_lyrics?.length) {
-          const lines = fallbackResult.synchronized_lyrics.map((entry, index, allEntries) => {
-            const startTime = typeof entry.time === 'number' ? entry.time : 0;
-            const nextEntry = allEntries[index + 1];
-            const endTime = nextEntry && typeof nextEntry.time === 'number' && nextEntry.time > startTime
-              ? nextEntry.time
-              : startTime + 2;
-
-            return {
-              startTime,
-              endTime,
-              text: entry.text,
-              chords: [],
-            };
-          });
-
-          setLyrics({ lines });
-          setShowLyrics(true);
-          setHasCachedLyrics(true);
-          setActiveTab('lyricsChords');
-          setLyricsError(null);
-          return;
-        }
-
-        if (fallbackResult.plain_lyrics && fallbackResult.plain_lyrics.trim().length > 0) {
-          const plainLines = fallbackResult.plain_lyrics
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0)
-            .map((line, index) => ({
-              startTime: index * 2,
-              endTime: index * 2 + 2,
-              text: line,
-              chords: [],
-            }));
-
-          if (plainLines.length > 0) {
-            setLyrics({ lines: plainLines });
-            setShowLyrics(true);
-            setHasCachedLyrics(true);
-            setActiveTab('lyricsChords');
-            setLyricsError(null);
-            return;
-          }
-        }
-      }
-    } catch (fallbackError) {
-      console.warn('Free lyrics providers unavailable, continuing to AssemblyAI transcription:', fallbackError);
-    }
-
     // Get the user's lyrics transcription API key (stored under existing key slot for compatibility)
     const { getMusicAiApiKeyWithValidation } = await import('@/utils/apiKeyUtils');
     const keyValidation = await getMusicAiApiKeyWithValidation();
@@ -409,16 +350,51 @@ export const transcribeLyricsWithAI = async (deps: AudioProcessingServiceDepende
 
     const data = await response.json();
 
-    if (data && data.lyrics) {
+    if (data && data.lyrics?.lines?.length) {
       setLyrics(data.lyrics);
       setShowLyrics(true);
       setHasCachedLyrics(false);
       setActiveTab('lyricsChords');
     } else {
-      throw new Error(data?.error || 'Failed to transcribe lyrics');
+      throw new Error(data?.error || 'AssemblyAI returned no synchronized lyric lines');
     }
   } catch (error) {
-    console.error('Lyrics transcription failed:', error);
+    console.error('AssemblyAI transcription failed, attempting synchronized fallback lyrics:', error);
+
+    const fallbackQuery = [titleFromSearch, channelFromSearch].filter(Boolean).join(' - ');
+    try {
+      const fallbackResult = await searchLyricsWithFallback({
+        search_query: fallbackQuery || titleFromSearch || videoId,
+        prefer_synchronized: true,
+      });
+
+      if (fallbackResult.success && fallbackResult.has_synchronized && fallbackResult.synchronized_lyrics?.length) {
+        const lines = fallbackResult.synchronized_lyrics.map((entry, index, allEntries) => {
+          const startTime = typeof entry.time === 'number' ? entry.time : 0;
+          const nextEntry = allEntries[index + 1];
+          const endTime = nextEntry && typeof nextEntry.time === 'number' && nextEntry.time > startTime
+            ? nextEntry.time
+            : startTime + 2;
+
+          return {
+            startTime,
+            endTime,
+            text: entry.text,
+            chords: [],
+          };
+        });
+
+        setLyrics({ lines });
+        setShowLyrics(true);
+        setHasCachedLyrics(true);
+        setActiveTab('lyricsChords');
+        setLyricsError('AssemblyAI failed; using synchronized fallback lyrics.');
+        return;
+      }
+    } catch (fallbackError) {
+      console.warn('Synchronized fallback lyrics also failed:', fallbackError);
+    }
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     setLyricsError(errorMessage);
   } finally {

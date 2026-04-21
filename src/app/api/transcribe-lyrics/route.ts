@@ -5,6 +5,7 @@ import { transcribeLyricsWithAssembly } from '@/services/lyrics/assemblyAiServic
 
 interface CachedLyricsData {
   lines?: unknown[];
+  source?: string;
   [key: string]: unknown;
 }
 
@@ -32,7 +33,8 @@ export async function POST(request: NextRequest) {
 
     if (lyricsDoc.exists() && !forceRefresh) {
       const cachedData = lyricsDoc.data() as CachedLyricsData;
-      if (cachedData?.lines && Array.isArray(cachedData.lines) && cachedData.lines.length > 0) {
+      const isAssemblyCache = cachedData?.source === 'assemblyai-transcription';
+      if (cachedData?.lines && Array.isArray(cachedData.lines) && cachedData.lines.length > 0 && isAssemblyCache) {
         return NextResponse.json({
           success: true,
           message: 'Lyrics retrieved from cache',
