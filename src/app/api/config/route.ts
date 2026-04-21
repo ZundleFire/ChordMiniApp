@@ -48,6 +48,30 @@ export async function GET() {
       }
     }
 
+    // Backward-compatible aliases: map non-prefixed Firebase env vars to NEXT_PUBLIC_* keys.
+    // This supports deployments that configured FIREBASE_* variables only.
+    const setAliasIfMissing = (targetKey: string, sourceKeys: string[]) => {
+      if (publicConfig[targetKey]) {
+        return;
+      }
+
+      for (const sourceKey of sourceKeys) {
+        const sourceValue = process.env[sourceKey];
+        if (sourceValue) {
+          publicConfig[targetKey] = sourceValue;
+          return;
+        }
+      }
+    };
+
+    setAliasIfMissing('NEXT_PUBLIC_FIREBASE_API_KEY', ['FIREBASE_API_KEY', 'FIREBASE_WEB_API_KEY']);
+    setAliasIfMissing('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', ['FIREBASE_AUTH_DOMAIN']);
+    setAliasIfMissing('NEXT_PUBLIC_FIREBASE_PROJECT_ID', ['FIREBASE_PROJECT_ID']);
+    setAliasIfMissing('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET', ['FIREBASE_STORAGE_BUCKET']);
+    setAliasIfMissing('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', ['FIREBASE_MESSAGING_SENDER_ID']);
+    setAliasIfMissing('NEXT_PUBLIC_FIREBASE_APP_ID', ['FIREBASE_APP_ID']);
+    setAliasIfMissing('NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID', ['FIREBASE_MEASUREMENT_ID']);
+
     // Return config with strict no-cache headers
     return new Response(JSON.stringify(publicConfig), {
       status: 200,
