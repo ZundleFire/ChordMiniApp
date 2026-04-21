@@ -3,6 +3,15 @@
 import React from 'react';
 import { HiPencil, HiCheck, HiXMark } from 'react-icons/hi2';
 import AppTooltip from '@/components/common/AppTooltip';
+import { FavoritesButton } from '@/components/common/FavoritesButton';
+
+interface FavoriteTrackMeta {
+  videoId: string;
+  title: string;
+  channelTitle: string;
+  thumbnail: string;
+  duration: number;
+}
 
 interface AnalysisHeaderProps {
   videoTitle: string;
@@ -20,6 +29,7 @@ interface AnalysisHeaderProps {
   canTranscribe: boolean;
   transcribeLyricsWithAI: () => void;
   lyricsError: string | null;
+  favoriteTrack?: FavoriteTrackMeta;
 }
 
 const AnalysisHeader: React.FC<AnalysisHeaderProps> = ({
@@ -38,6 +48,7 @@ const AnalysisHeader: React.FC<AnalysisHeaderProps> = ({
   canTranscribe,
   transcribeLyricsWithAI,
   lyricsError,
+  favoriteTrack,
 }) => {
   const enharmonicTooltip = showCorrectedChords
     ? 'Show original chord spellings'
@@ -107,6 +118,16 @@ const AnalysisHeader: React.FC<AnalysisHeaderProps> = ({
           </div>
 
           <div className="flex gap-2 flex-shrink-0 md:hidden">
+            {favoriteTrack && (
+              <FavoritesButton
+                videoId={favoriteTrack.videoId}
+                title={favoriteTrack.title}
+                channelTitle={favoriteTrack.channelTitle}
+                thumbnail={favoriteTrack.thumbnail}
+                duration={favoriteTrack.duration}
+              />
+            )}
+
             {hasCorrections && (
               <AppTooltip content={enharmonicTooltip}>
                 <button
@@ -145,6 +166,16 @@ const AnalysisHeader: React.FC<AnalysisHeaderProps> = ({
         </div>
 
         <div className="hidden md:flex gap-2 flex-shrink-0">
+          {favoriteTrack && (
+            <FavoritesButton
+              videoId={favoriteTrack.videoId}
+              title={favoriteTrack.title}
+              channelTitle={favoriteTrack.channelTitle}
+              thumbnail={favoriteTrack.thumbnail}
+              duration={favoriteTrack.duration}
+            />
+          )}
+
           {hasCorrections && (
             <AppTooltip content={enharmonicTooltip}>
               <button

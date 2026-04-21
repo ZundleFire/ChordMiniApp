@@ -46,6 +46,34 @@ export interface PublicConfig {
   [key: string]: string | undefined;
 }
 
+function isUnsetOrPlaceholder(value?: string): boolean {
+  if (!value) {
+    return true;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized.length === 0 ||
+    normalized.includes('your_') ||
+    normalized.includes('your-project') ||
+    normalized.includes('xxxxxxxxxx') ||
+    normalized === 'replace_with_random_secret'
+  );
+}
+
+export function hasUsableFirebaseConfig(config: {
+  apiKey?: string;
+  authDomain?: string;
+  projectId?: string;
+  storageBucket?: string;
+}): boolean {
+  return !(
+    isUnsetOrPlaceholder(config.apiKey) ||
+    isUnsetOrPlaceholder(config.authDomain) ||
+    isUnsetOrPlaceholder(config.projectId)
+  );
+}
+
 // Cache for loaded configuration
 let configCache: PublicConfig | null = null;
 

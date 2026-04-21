@@ -17,14 +17,9 @@ export const useFirebaseReadiness = () => {
     let hasLoggedFailure = false;
 
     const hasRequiredFirebaseConfig = async (): Promise<boolean> => {
-      const { getFirebaseConfig } = await import('@/config/publicConfig');
+      const { getFirebaseConfig, hasUsableFirebaseConfig } = await import('@/config/publicConfig');
       const config = await getFirebaseConfig();
-      return Boolean(
-        config.apiKey &&
-        config.authDomain &&
-        config.projectId &&
-        config.storageBucket
-      );
+      return hasUsableFirebaseConfig(config);
     };
 
     const checkFirebaseReady = async () => {

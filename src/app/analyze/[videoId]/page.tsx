@@ -1372,6 +1372,17 @@ export default function YouTubeVideoAnalyzePage() {
                       canTranscribe={isServiceAvailable('musicAi') && !!audioProcessingState.audioUrl}
                       transcribeLyricsWithAI={transcribeLyricsWithAI}
                       lyricsError={lyricsError}
+                      favoriteTrack={{
+                        videoId,
+                        title: videoTitle || titleFromSearch || 'Untitled track',
+                        channelTitle: channelFromSearch || 'Unknown channel',
+                        thumbnail: thumbnailFromSearch || '',
+                        duration: Number.isFinite(duration) && duration > 0
+                          ? duration
+                          : (Number.isFinite(parseAnalysisDurationSeconds(durationFromSearch))
+                            ? parseAnalysisDurationSeconds(durationFromSearch)
+                            : 0),
+                      }}
                     />
 
                     <ResultsTabs

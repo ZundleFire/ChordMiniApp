@@ -27,8 +27,8 @@ const BetaTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 const ResultsTabs: React.FC<ResultsTabsProps> = ({
   activeTab,
   setActiveTab,
-  showLyrics,
-  hasCachedLyrics,
+  showLyrics: _showLyrics,
+  hasCachedLyrics: _hasCachedLyrics,
   rightContent
 }) => {
   const handleSelectionChange = (key: React.Key) => {
@@ -72,7 +72,6 @@ const ResultsTabs: React.FC<ResultsTabsProps> = ({
         <Tab
           key="lyricsChords"
           title={<BetaTitle>Lyrics & Chords</BetaTitle>}
-          isDisabled={!showLyrics && !hasCachedLyrics}
         />
       </Tabs>
 

@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 import { getAuth, Auth, signInAnonymously, onAuthStateChanged, User, setPersistence, browserLocalPersistence } from "firebase/auth";
-import { getFirebaseConfig, getFirebaseConfigSync } from '@/config/publicConfig';
+import { getFirebaseConfig, getFirebaseConfigSync, hasUsableFirebaseConfig } from '@/config/publicConfig';
 
 // RUNTIME CONFIG SUPPORT:
 // This file now loads Firebase configuration at runtime from /api/config endpoint
@@ -59,16 +59,12 @@ async function initializeFirebase(): Promise<void> {
         : getFirebaseConfigSync();    // Server-side: use process.env
 
       // Validate configuration
-      const hasRequiredConfig =
-        !!firebaseConfig.apiKey &&
-        !!firebaseConfig.authDomain &&
-        !!firebaseConfig.projectId &&
-        !!firebaseConfig.storageBucket;
+      const hasRequiredConfig = hasUsableFirebaseConfig(firebaseConfig);
 
       if (!hasRequiredConfig) {
         if (!hasLoggedMissingConfig) {
           console.warn('Missing required Firebase configuration. Firebase will not be initialized.');
-          console.warn('Required variables: NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
+            console.warn('Required variables: NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID');
           hasLoggedMissingConfig = true;
         }
         return;
