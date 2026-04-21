@@ -129,6 +129,7 @@ function LocalAudioAnalyzePageInner() {
   const objectUrlRef = useRef<string | null>(null);
   const persistRequestIdRef = useRef(0);
   const restoredCacheIdentityRef = useRef<string | null>(null);
+  const autoLyricsRequestKeyRef = useRef<string | null>(null);
   const durationLimitToastShownRef = useRef(false);
 
   const { lyrics, completeLyricsTranscription } = useLyricsState();
@@ -618,6 +619,60 @@ function LocalAudioAnalyzePageInner() {
       title: audioFile?.name,
     });
   }, [analysisResults, audioFile?.name, duration, lyrics, sourceIdentity]);
+
+  useEffect(() => {
+    if (!analysisResults || !audioProcessingState.audioUrl || (lyrics?.lines?.length ?? 0) > 0) {
+      return;
+    }
+
+    const rawId = sourceIdentity || localFavoriteId || audioFile?.name || 'upload';
+    const sanitizedId = rawId.replace(/[/.#$\[\]]/g, '_').slice(0, 180);
+    const localLyricsVideoId = `local-${sanitizedId}`;
+    const requestKey = `${localLyricsVideoId}:${audioProcessingState.audioUrl}`;
+
+    if (autoLyricsRequestKeyRef.current === requestKey) {
+      return;
+    }
+    autoLyricsRequestKeyRef.current = requestKey;
+
+    let isCancelled = false;
+
+    const transcribeAndStoreLyrics = async () => {
+      try {
+        const { getMusicAiApiKey } = await import('@/utils/apiKeyUtils');
+        const assemblyAiApiKey = await getMusicAiApiKey();
+
+        const response = await fetch('/api/transcribe-lyrics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoId: localLyricsVideoId,
+            audioPath: audioProcessingState.audioUrl,
+            forceRefresh: false,
+            checkCacheOnly: false,
+            ...(assemblyAiApiKey ? { assemblyAiApiKey } : {}),
+          }),
+        });
+
+        const data = await response.json();
+        if (isCancelled) {
+          return;
+        }
+
+        if (response.ok && data.success && data.lyrics?.lines?.length) {
+          completeLyricsTranscription(data.lyrics);
+        }
+      } catch (error) {
+        console.warn('Automatic lyrics transcription failed:', error);
+      }
+    };
+
+    void transcribeAndStoreLyrics();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [analysisResults, audioFile?.name, audioProcessingState.audioUrl, completeLyricsTranscription, localFavoriteId, lyrics?.lines?.length, sourceIdentity]);
 
   useEffect(() => {
     if (!lyrics?.lines?.length) {

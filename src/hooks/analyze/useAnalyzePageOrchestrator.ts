@@ -292,6 +292,8 @@ export function useAnalyzePageOrchestrator({
   const extractionLockRef = useRef(false);
   const latestRequestIdRef = useRef<string | null>(null);
   const audioExtractionAbortControllerRef = useRef<AbortController | null>(null);
+  const autoLyricsRequestKeyRef = useRef<string | null>(null);
+  const autoLyricsRequestInFlightRef = useRef(false);
   const transcriptionSnapshotsRef = useRef<Record<string, TranscriptionSnapshot | null | undefined>>({});
   const romanNumeralDataRef = useRef<RomanNumeralSnapshot | null>(null);
   const [persistedSnapshotKeys, setPersistedSnapshotKeys] = useState<Record<string, true>>({});
@@ -1002,7 +1004,20 @@ export function useAnalyzePageOrchestrator({
         return;
       }
 
+      const shouldTranscribeNow = Boolean(audioProcessingState.isAnalyzed);
+      const requestKey = `${videoId}:${audioProcessingState.audioUrl}:${shouldTranscribeNow ? 'transcribe' : 'cache'}`;
+
+      if (autoLyricsRequestInFlightRef.current || autoLyricsRequestKeyRef.current === requestKey) {
+        return;
+      }
+
+      autoLyricsRequestInFlightRef.current = true;
+      autoLyricsRequestKeyRef.current = requestKey;
+
       try {
+        const { getMusicAiApiKey } = await import('@/utils/apiKeyUtils');
+        const assemblyAiApiKey = await getMusicAiApiKey();
+
         const response = await fetch('/api/transcribe-lyrics', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1010,7 +1025,8 @@ export function useAnalyzePageOrchestrator({
             videoId,
             audioPath: audioProcessingState.audioUrl,
             forceRefresh: false,
-            checkCacheOnly: true,
+            checkCacheOnly: !shouldTranscribeNow,
+            ...(assemblyAiApiKey ? { assemblyAiApiKey } : {}),
           }),
         });
 
@@ -1018,7 +1034,7 @@ export function useAnalyzePageOrchestrator({
         if (response.ok && data.success && data.lyrics?.lines?.length) {
           setLyrics(data.lyrics);
           setShowLyrics(true);
-          setHasCachedLyrics(false);
+          setHasCachedLyrics(Boolean(data.cached));
           return;
         }
 
@@ -1026,6 +1042,8 @@ export function useAnalyzePageOrchestrator({
       } catch (error) {
         console.log('Cache check failed:', error);
         setHasCachedLyrics(false);
+      } finally {
+        autoLyricsRequestInFlightRef.current = false;
       }
     };
 
@@ -1034,6 +1052,7 @@ export function useAnalyzePageOrchestrator({
     }
   }, [
     audioProcessingState.audioUrl,
+    audioProcessingState.isAnalyzed,
     audioProcessingState.isExtracted,
     lyrics?.lines?.length,
     setHasCachedLyrics,
