@@ -74,6 +74,40 @@ export function hasUsableFirebaseConfig(config: {
   );
 }
 
+function normalizeFirebaseStorageBucket(value?: string): string | undefined {
+  if (!value) {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('gs://')) {
+    return trimmed.slice('gs://'.length).replace(/\/+$/, '');
+  }
+
+  if (trimmed.includes('firebasestorage.googleapis.com')) {
+    try {
+      const parsed = new URL(trimmed);
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      const bucketIdx = segments.findIndex((segment) => segment === 'b');
+      if (bucketIdx >= 0 && segments[bucketIdx + 1]) {
+        return decodeURIComponent(segments[bucketIdx + 1]);
+      }
+    } catch {
+      // fall through to raw value
+    }
+  }
+
+  if (trimmed.includes('/')) {
+    return trimmed.split('/')[0];
+  }
+
+  return trimmed;
+}
+
 // Cache for loaded configuration
 let configCache: PublicConfig | null = null;
 
@@ -222,7 +256,7 @@ export async function getFirebaseConfig() {
     apiKey: pick(config.NEXT_PUBLIC_FIREBASE_API_KEY, config.FIREBASE_API_KEY, config.FIREBASE_WEB_API_KEY),
     authDomain: pick(config.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, config.FIREBASE_AUTH_DOMAIN),
     projectId: pick(config.NEXT_PUBLIC_FIREBASE_PROJECT_ID, config.FIREBASE_PROJECT_ID),
-    storageBucket: pick(config.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, config.FIREBASE_STORAGE_BUCKET),
+    storageBucket: normalizeFirebaseStorageBucket(pick(config.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, config.FIREBASE_STORAGE_BUCKET)),
     messagingSenderId: pick(config.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, config.FIREBASE_MESSAGING_SENDER_ID),
     appId: pick(config.NEXT_PUBLIC_FIREBASE_APP_ID, config.FIREBASE_APP_ID),
     measurementId: pick(config.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, config.FIREBASE_MEASUREMENT_ID),
@@ -241,7 +275,7 @@ export function getFirebaseConfigSync() {
     apiKey: pick(process.env.NEXT_PUBLIC_FIREBASE_API_KEY, process.env.FIREBASE_API_KEY, process.env.FIREBASE_WEB_API_KEY),
     authDomain: pick(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, process.env.FIREBASE_AUTH_DOMAIN),
     projectId: pick(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, process.env.FIREBASE_PROJECT_ID),
-    storageBucket: pick(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, process.env.FIREBASE_STORAGE_BUCKET),
+    storageBucket: normalizeFirebaseStorageBucket(pick(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, process.env.FIREBASE_STORAGE_BUCKET)),
     messagingSenderId: pick(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, process.env.FIREBASE_MESSAGING_SENDER_ID),
     appId: pick(process.env.NEXT_PUBLIC_FIREBASE_APP_ID, process.env.FIREBASE_APP_ID),
     measurementId: pick(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, process.env.FIREBASE_MEASUREMENT_ID),

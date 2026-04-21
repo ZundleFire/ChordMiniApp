@@ -41,6 +41,12 @@ export interface Playlist {
 const FAVORITES_COLLECTION = 'users';
 const PLAYLISTS_COLLECTION = 'playlists';
 
+function sanitizeFavoriteTrack(track: Omit<FavoriteTrack, 'id' | 'addedAt'>): Omit<FavoriteTrack, 'id' | 'addedAt'> {
+  return Object.fromEntries(
+    Object.entries(track).filter(([, value]) => value !== undefined)
+  ) as Omit<FavoriteTrack, 'id' | 'addedAt'>;
+}
+
 export class UserLibraryService {
   private static getDb() {
     if (!db) {
@@ -57,12 +63,13 @@ export class UserLibraryService {
       const firestore = this.getDb();
       const userDocRef = doc(firestore, FAVORITES_COLLECTION, userId);
       const userDoc = await getDoc(userDocRef);
+      const sanitizedTrack = sanitizeFavoriteTrack(track);
 
       if (!userDoc.exists()) {
         await setDoc(userDocRef, {
           favorites: [
             {
-              ...track,
+              ...sanitizedTrack,
               addedAt: Timestamp.now(),
             },
           ],
@@ -71,12 +78,12 @@ export class UserLibraryService {
         const favorites = userDoc.data()?.favorites || [];
 
         // Check if already favorited
-        if (favorites.some((f: FavoriteTrack) => f.videoId === track.videoId)) {
+        if (favorites.some((f: FavoriteTrack) => f.videoId === sanitizedTrack.videoId)) {
           throw new Error('Track already in favorites');
         }
 
         favorites.push({
-          ...track,
+          ...sanitizedTrack,
           addedAt: Timestamp.now(),
         });
 

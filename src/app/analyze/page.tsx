@@ -103,6 +103,7 @@ import { MAX_ANALYSIS_DURATION_MINUTES, getAnalysisDurationLimitReason } from '@
 import MelodyTranscriptionStatusToast from '@/components/analysis/MelodyTranscriptionStatusToast';
 import { FavoritesButton } from '@/components/common/FavoritesButton';
 import { offloadUploadService } from '@/services/storage/offloadUploadService';
+import { buildAudioProxyUrl } from '@/utils/audioProxyUrl';
 
 function LocalAudioAnalyzePageInner() {
   const searchParams = useSearchParams();
@@ -785,7 +786,7 @@ function LocalAudioAnalyzePageInner() {
         setPersistentAudioUrl(persistedUrl);
         setAudioProcessingState(prev => ({
           ...prev,
-          audioUrl: persistedUrl,
+          audioUrl: buildAudioProxyUrl(persistedUrl, { forceProxy: true }),
         }));
       } catch (error) {
         console.warn('Local audio persistence failed, continuing with in-memory URL:', error);

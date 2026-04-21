@@ -5,6 +5,7 @@ import { Card, CardBody, Image, Button } from '@heroui/react';
 import Navigation from '@/components/common/Navigation';
 import { useFavorites } from '@/hooks/useUserLibrary';
 import { useUser } from '@/contexts/UserContext';
+import { buildAudioProxyUrl } from '@/utils/audioProxyUrl';
 
 export default function FavoritesPage() {
   const { isAuthenticated } = useUser();
@@ -87,7 +88,7 @@ export default function FavoritesPage() {
                       <audio
                         controls
                         preload="none"
-                        src={track.audioUrl}
+                        src={buildAudioProxyUrl(track.audioUrl, { forceProxy: true })}
                         className="w-full"
                       />
                     </div>
