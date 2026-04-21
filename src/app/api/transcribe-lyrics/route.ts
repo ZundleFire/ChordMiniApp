@@ -3,6 +3,7 @@ import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/services/firebase/firebaseService';
 import { searchLyricsWithFallback } from '@/services/lyrics/lyricsService';
 import musicAiService from '@/services/lyrics/musicAiService';
+import { tryAlignLyricsWithLyricsSync } from '@/services/lyrics/lyricsSyncService';
 import type { LyricsData } from '@/types/musicAiTypes';
 
 interface CachedLyricsData {
@@ -14,6 +15,7 @@ interface CachedLyricsData {
 const TIMED_LYRICS_CACHE_SOURCES = new Set([
   'musicai-transcription',
   'free-lrclib-timing-json',
+  'lyrics-sync-alignment',
   'manual-lyrics-timed-json',
 ]);
 
@@ -131,6 +133,42 @@ export async function POST(request: NextRequest) {
       search_query: parsedSearchQuery || undefined,
       prefer_synchronized: true,
     });
+
+    if (
+      fallbackResult.success
+      && !fallbackResult.has_synchronized
+      && typeof fallbackResult.plain_lyrics === 'string'
+      && fallbackResult.plain_lyrics.trim().length > 0
+    ) {
+      const syncedFromLyricsSync = await tryAlignLyricsWithLyricsSync({
+        audioPath,
+        plainLyrics: fallbackResult.plain_lyrics,
+      });
+
+      if (syncedFromLyricsSync?.lines?.length) {
+        try {
+          await setDoc(lyricsDocRef, {
+            ...syncedFromLyricsSync,
+            videoId,
+            timestamp: new Date().toISOString(),
+            cached: true,
+            source: 'lyrics-sync-alignment',
+            provider: 'mikezzb/lyrics-sync',
+            metadata: fallbackResult.metadata,
+          });
+        } catch (cacheError) {
+          console.warn('Failed to cache lyrics-sync aligned lyrics in Firestore:', cacheError);
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Timed lyrics aligned with lyrics-sync',
+          lyrics: syncedFromLyricsSync,
+          cached: false,
+          source: 'lyrics-sync-alignment',
+        });
+      }
+    }
 
     if (!fallbackResult.success || !fallbackResult.has_synchronized || !fallbackResult.synchronized_lyrics?.length) {
       return NextResponse.json(

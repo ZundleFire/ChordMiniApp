@@ -18,6 +18,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - LYRICS_SYNC_INSTALL=${LYRICS_SYNC_INSTALL:-false}
     ports:
       - "3001:3000"
     environment:
@@ -45,6 +47,9 @@ services:
       # Development Flags (Server-only)
       - USE_MOCK_MUSIC_AI=${USE_MOCK_MUSIC_AI:-false}
       - USE_FIREBASE_EMULATOR=${USE_FIREBASE_EMULATOR:-false}
+      # Optional lyrics-sync alignment fallback (requires Python package installed)
+      - LYRICS_SYNC_ENABLED=${LYRICS_SYNC_ENABLED:-false}
+      - LYRICS_SYNC_PYTHON_BIN=${LYRICS_SYNC_PYTHON_BIN:-python3}
     volumes:
       # Audio cache for caching downloaded audio files
       - ./audio-cache:/app/audio_cache

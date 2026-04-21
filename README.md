@@ -258,6 +258,45 @@ For YouTube embed reliability on non-localhost deployments, run the app behind H
 > If you have Docker Compose V1 installed, use `docker-compose` (with hyphen) instead of `docker compose` (with space).
 
 > [!IMPORTANT]
+
+## Optional: lyrics-sync Fallback on Linux Server
+
+ChordMini can optionally use `mikezzb/lyrics-sync` to align plain lyrics to audio when timed lyrics are unavailable.
+
+### A) Native Linux server (no Docker)
+
+1. Install the helper script:
+```bash
+bash scripts/install_lyrics_sync_linux.sh
+```
+
+2. Set runtime env vars:
+```bash
+LYRICS_SYNC_ENABLED=true
+LYRICS_SYNC_PYTHON_BIN=/opt/chordmini-lyrics-sync/bin/python
+```
+
+3. Restart the app process.
+
+### B) Docker production deployment
+
+1. In `.env.docker`, enable flags:
+```bash
+LYRICS_SYNC_ENABLED=true
+LYRICS_SYNC_PYTHON_BIN=python3
+LYRICS_SYNC_INSTALL=true
+```
+
+2. Rebuild and restart:
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.docker up -d --build
+```
+
+### Notes
+
+- This fallback is only used when synchronized lyrics are not available from primary sources.
+- If `lyrics-sync` fails or is disabled, ChordMini falls back to existing lyrics providers.
+- Enabling `LYRICS_SYNC_INSTALL=true` increases image build time and size.
 > The currently pinned Docker Hub images in [docker-compose.prod.yml](docker-compose.prod.yml) (`ptnghia/chordmini-frontend:v0.5.3` and `ptnghia/chordmini-backend:v0.5.3`) are published as `linux/arm64` images. They will not pull on Windows/x86_64 or other `amd64` hosts. On Windows/x86_64, build local `linux/amd64` images instead:
 >
 > ```bash

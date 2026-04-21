@@ -44,6 +44,10 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+# Optional build toggle for lyrics-sync installation.
+# Keep disabled by default because it significantly increases image size.
+ARG LYRICS_SYNC_INSTALL=false
+
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -55,6 +59,9 @@ RUN apk add --no-cache \
     py3-pip \
     ffmpeg \
     && pip3 install --no-cache-dir --break-system-packages yt-dlp \
+        && if [ "$LYRICS_SYNC_INSTALL" = "true" ]; then \
+            pip3 install --no-cache-dir --break-system-packages git+https://github.com/mikezzb/lyrics-sync.git; \
+        fi \
     && rm -rf /var/cache/apk/*
 
 # Copy built application
@@ -77,6 +84,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV LYRICS_SYNC_ENABLED=false
+ENV LYRICS_SYNC_PYTHON_BIN=python3
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
