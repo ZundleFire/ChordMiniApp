@@ -124,8 +124,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [isReady]);
 
   const signInWithGoogle = useCallback(async () => {
-    if (!auth) {
-      const authError = new Error('Firebase Auth is not initialized');
+    let activeAuth = auth;
+    if (!activeAuth) {
+      const initialized = await ensureFirebaseInitialized();
+      activeAuth = initialized.auth;
+      if (activeAuth) {
+        setAuth(activeAuth);
+      }
+    }
+
+    if (!activeAuth) {
+      const authError = new Error('Google sign-in is unavailable. Check Firebase public configuration.');
       setError(authError.message);
       throw authError;
     }
@@ -134,7 +143,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setLoading(true);
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(activeAuth, provider);
     } catch (err) {
       const message = getFriendlyAuthError(err);
       setError(message);
@@ -146,8 +155,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [auth]);
 
   const signInWithEmailPassword = useCallback(async (email: string, password: string) => {
-    if (!auth) {
-      const authError = new Error('Authentication is not initialized');
+    let activeAuth = auth;
+    if (!activeAuth) {
+      const initialized = await ensureFirebaseInitialized();
+      activeAuth = initialized.auth;
+      if (activeAuth) {
+        setAuth(activeAuth);
+      }
+    }
+
+    if (!activeAuth) {
+      const authError = new Error('Email sign-in is unavailable. Check Firebase public configuration.');
       setError(authError.message);
       throw authError;
     }
@@ -161,7 +179,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      await signInWithEmailAndPassword(activeAuth, email.trim(), password);
     } catch (err) {
       const message = getFriendlyAuthError(err);
       setError(message);
@@ -173,8 +191,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [auth]);
 
   const signUpWithEmailPassword = useCallback(async (email: string, password: string) => {
-    if (!auth) {
-      const authError = new Error('Authentication is not initialized');
+    let activeAuth = auth;
+    if (!activeAuth) {
+      const initialized = await ensureFirebaseInitialized();
+      activeAuth = initialized.auth;
+      if (activeAuth) {
+        setAuth(activeAuth);
+      }
+    }
+
+    if (!activeAuth) {
+      const authError = new Error('Email sign-up is unavailable. Check Firebase public configuration.');
       setError(authError.message);
       throw authError;
     }
@@ -188,7 +215,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       setLoading(true);
-      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await createUserWithEmailAndPassword(activeAuth, email.trim(), password);
     } catch (err) {
       const message = getFriendlyAuthError(err);
       setError(message);

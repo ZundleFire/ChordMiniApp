@@ -224,7 +224,9 @@ async function attemptAnonymousSignInWithRetry(resolve: () => void) {
       if (firebaseError.code === 'auth/operation-not-allowed') {
         console.error('🚨 Anonymous authentication is not enabled in Firebase Console!');
         console.error('🚨 Please enable it at: https://console.firebase.google.com/project/chordmini-d29f9/authentication/providers');
-        break; // Don't retry for configuration errors
+        authState.ready = false;
+        resolve();
+        return; // Don't retry for configuration errors
       }
 
       if (firebaseError.code === 'auth/network-request-failed') {

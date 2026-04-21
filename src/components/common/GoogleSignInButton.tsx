@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useUser } from '@/contexts/UserContext';
 
 export function GoogleSignInButton() {
@@ -137,9 +138,9 @@ export function GoogleSignInButton() {
         Sign in
       </button>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/30 bg-white/95 shadow-2xl dark:border-white/15 dark:bg-gray-900/95">
+      {isModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-black/55 p-4 pt-16 backdrop-blur-sm sm:items-center sm:pt-4">
+          <div className="my-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/30 bg-white/95 shadow-2xl dark:border-white/15 dark:bg-gray-900/95">
             <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sign in to ChordMini</h3>
@@ -255,7 +256,8 @@ export function GoogleSignInButton() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
