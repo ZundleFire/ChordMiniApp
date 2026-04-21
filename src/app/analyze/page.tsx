@@ -119,6 +119,7 @@ function LocalAudioAnalyzePageInner() {
   const [isImportingSource, setIsImportingSource] = useState(false);
   const [persistentAudioUrl, setPersistentAudioUrl] = useState<string | null>(null);
   const [isPersistingAudio, setIsPersistingAudio] = useState(false);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const persistRequestIdRef = useRef(0);
@@ -436,9 +437,6 @@ function LocalAudioAnalyzePageInner() {
 
     void importAudioFromSourceUrl(sourceUrl);
   }, [audioFile, audioProcessingState.isExtracted, importAudioFromSourceUrl, isImportingSource, searchParams]);
-  // Analysis results state (must be declared before dependent memos)
-  const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null);
-
   // Lyrics state (before memos that depend on it)
   const [fontSize, setFontSize] = useState<number>(16);
   const theme = 'light';
