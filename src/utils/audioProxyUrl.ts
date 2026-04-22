@@ -14,6 +14,23 @@ export interface ResolveAudioProxyGetModeOptions {
   redirectEnabled?: boolean;
 }
 
+export function isAudioProxyUrl(audioUrl: string): boolean {
+  if (!audioUrl) {
+    return false;
+  }
+
+  if (audioUrl.startsWith('/api/proxy-audio')) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(audioUrl);
+    return parsed.pathname === '/api/proxy-audio' || parsed.pathname.startsWith('/api/proxy-audio/');
+  } catch {
+    return false;
+  }
+}
+
 export function encodeAudioProxySourceUrl(audioUrl: string): string {
   if (audioUrl.includes('quicktube.app/dl/')) {
     return encodeURIComponent(audioUrl).replace(/%5B/g, '[').replace(/%5D/g, ']');

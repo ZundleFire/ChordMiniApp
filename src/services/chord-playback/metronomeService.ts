@@ -54,6 +54,7 @@ export class MetronomeService {
         return;
       }
 
+      await audioContextManager.waitForUserGesture();
       this.audioContext = audioContextManager.getContext();
       await audioContextManager.resume();
       this.isInitialized = true;

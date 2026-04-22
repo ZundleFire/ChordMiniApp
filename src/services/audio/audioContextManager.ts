@@ -9,6 +9,7 @@ export class AudioContextManager {
   private static _instance: AudioContextManager | null = null;
   private _ctx: AudioContext | null = null;
   private _isInitializing = false;
+  private _gesturePromise: Promise<void> | null = null;
 
   private getContextState(ctx: AudioContext | null = this._ctx): AudioContextState | 'interrupted' | 'closed' {
     if (!ctx) {
@@ -88,6 +89,42 @@ export class AudioContextManager {
     if (freshState === 'suspended' || freshState === 'interrupted') {
       await freshContext.resume();
     }
+  }
+
+  async waitForUserGesture(): Promise<void> {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const userActivation = (navigator as Navigator & {
+      userActivation?: { hasBeenActive?: boolean; isActive?: boolean };
+    }).userActivation;
+
+    if (userActivation?.hasBeenActive || userActivation?.isActive) {
+      return;
+    }
+
+    if (!this._gesturePromise) {
+      this._gesturePromise = new Promise((resolve) => {
+        const done = () => {
+          cleanup();
+          this._gesturePromise = null;
+          resolve();
+        };
+
+        const cleanup = () => {
+          window.removeEventListener('click', done);
+          window.removeEventListener('touchstart', done);
+          window.removeEventListener('keydown', done);
+        };
+
+        window.addEventListener('click', done, { once: true, passive: true });
+        window.addEventListener('touchstart', done, { once: true, passive: true });
+        window.addEventListener('keydown', done, { once: true, passive: true });
+      });
+    }
+
+    await this._gesturePromise;
   }
 
   async suspend(): Promise<void> {

@@ -1,13 +1,13 @@
 import { audioContextManager } from './audioContextManager';
 import type { AudioDynamicsAnalysisResult } from './audioDynamicsTypes';
 import { analyzeMonoPcm } from './audioDynamicsCore';
-import { buildAudioProxyUrl } from '@/utils/audioProxyUrl';
+import { buildAudioProxyUrl, isAudioProxyUrl } from '@/utils/audioProxyUrl';
 import { analyzeMonoPcmInWorker } from '@/workers/audioDynamicsClient';
 
 const TARGET_ANALYSIS_SAMPLE_RATE = 11025;
 
 function resolveAnalysisFetchUrl(audioUrl: string): string {
-  if (audioUrl.startsWith('blob:')) {
+  if (audioUrl.startsWith('blob:') || isAudioProxyUrl(audioUrl)) {
     return audioUrl;
   }
   return buildAudioProxyUrl(audioUrl, {
@@ -121,6 +121,8 @@ export class AudioDynamicsAnalysisService {
       }
 
       const arrayBuffer = await response.arrayBuffer();
+      await audioContextManager.waitForUserGesture();
+      await audioContextManager.resume();
       const context = audioContextManager.getContext();
       const decoded = await context.decodeAudioData(arrayBuffer.slice(0));
       const { monoPcm, sampleRate } = downmixAndDownsampleBuffer(decoded);

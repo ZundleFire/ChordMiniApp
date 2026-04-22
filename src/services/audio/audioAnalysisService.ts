@@ -7,7 +7,7 @@
 
 import { getAudioDurationFromFile } from '@/utils/audioDurationUtils';
 import { getAnalysisDurationLimitReason } from '@/utils/analysisDurationLimit';
-import { buildAudioProxyUrl } from '@/utils/audioProxyUrl';
+import { buildAudioProxyUrl, isAudioProxyUrl } from '@/utils/audioProxyUrl';
 import { isFirebaseStorageUrl } from '@/utils/urlValidationUtils';
 
 import { offloadUploadService } from '@/services/storage/offloadUploadService';
@@ -227,7 +227,9 @@ async function fetchFileFromUrl(url: string, videoId?: string): Promise<File> {
   }
 
   // Fallback to URL-based fetching
-  const proxyUrl = buildAudioProxyUrl(url, { videoId });
+  const proxyUrl = isAudioProxyUrl(url)
+    ? url
+    : buildAudioProxyUrl(url, { videoId });
 
   const response = await fetch(proxyUrl);
   if (!response.ok) {
