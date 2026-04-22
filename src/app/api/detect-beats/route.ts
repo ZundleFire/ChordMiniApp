@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSafeTimeoutSignal } from '@/utils/environmentUtils';
 import { getAudioDurationFromFile } from '@/utils/audioDurationUtils';
 import { getPythonApiUrl } from '@/config/serverBackend';
+import { normalizeUploadedAudioFile } from '@/utils/serverAudioUpload';
 
 /**
  * Beat Detection API Route
@@ -37,22 +38,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedFile = await normalizeUploadedAudioFile(file);
+
     // Log file info
-    const fileSizeMB = file.size / 1024 / 1024;
+    const fileSizeMB = normalizedFile.size / 1024 / 1024;
     console.log(`📁 Processing audio file: ${file.name} (${fileSizeMB.toFixed(2)}MB)`);
 
     // Import offload upload service to use environment-aware logic
     const { offloadUploadService } = await import('@/services/storage/offloadUploadService');
 
     // Use environment-aware blob upload decision (same as chord recognition)
-    if (offloadUploadService.shouldUseBlobUpload(file.size)) {
+    if (offloadUploadService.shouldUseBlobUpload(normalizedFile.size)) {
       console.log(`🔄 Environment-aware decision: Using Firebase offload upload for ${fileSizeMB.toFixed(2)}MB file`);
 
       try {
         const detector = formData.get('detector') as string || 'beat-transformer';
 
         // Use Firebase offload upload for large files
-        const blobResult = await offloadUploadService.detectBeatsBlobUpload(file, detector as 'auto' | 'madmom' | 'beat-transformer');
+        const blobResult = await offloadUploadService.detectBeatsBlobUpload(normalizedFile, detector as 'auto' | 'madmom' | 'beat-transformer');
 
         if (blobResult.success) {
           console.log(`✅ Firebase offload beat detection completed successfully`);
@@ -79,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // Log audio duration for debugging before sending to backend ML service
     try {
-      const duration = await getAudioDurationFromFile(file);
+      const duration = await getAudioDurationFromFile(normalizedFile);
       console.log(`🎵 Audio duration detected: ${duration.toFixed(1)} seconds - proceeding with beat detection analysis`);
     } catch (durationError) {
       console.warn(`⚠️ Could not detect audio duration for debugging: ${durationError}`);
@@ -106,9 +109,18 @@ export async function POST(request: NextRequest) {
     // Forward the request to the backend with extended timeout
     console.log(`📡 Making fetch request to Python backend...`);
     const requestedDetector = (formData.get('detector') as string) || 'madmom';
+    const backendFormData = new FormData();
+    backendFormData.append('file', normalizedFile, normalizedFile.name);
+    if (formData.get('detector')) {
+      backendFormData.append('detector', String(formData.get('detector')));
+    }
+    if (formData.get('force')) {
+      backendFormData.append('force', String(formData.get('force')));
+    }
+
     let response = await fetch(targetUrl, {
       method: 'POST',
-      body: formData,
+      body: backendFormData,
       headers: {
         // Don't set Content-Type - let the browser set it with boundary for FormData
       },
@@ -127,16 +139,9 @@ export async function POST(request: NextRequest) {
       if (requestedDetector === 'beat-transformer' && isCheckpointError) {
         console.warn('⚠️ Beat-Transformer checkpoint unavailable. Retrying with madmom...');
         const fd = new FormData();
-        for (const [k, v] of formData.entries()) {
-          if (k === 'detector') continue;
-          if (typeof v === 'string') {
-            fd.append(k, v);
-          } else if (v instanceof File) {
-            fd.append(k, v, v.name ?? undefined);
-          } else {
-            // Fallback: append as Blob
-            fd.append(k, v as Blob);
-          }
+        fd.append('file', normalizedFile, normalizedFile.name);
+        if (formData.get('force')) {
+          fd.append('force', String(formData.get('force')));
         }
         fd.append('detector', 'madmom');
         response = await fetch(targetUrl, { method: 'POST', body: fd, signal: abortSignal });

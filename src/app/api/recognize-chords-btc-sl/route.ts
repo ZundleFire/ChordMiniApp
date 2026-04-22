@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPythonApiUrl } from '@/config/serverBackend';
+import { normalizeUploadedAudioFile } from '@/utils/serverAudioUpload';
 
 /**
  * API route to recognize chords in an audio file using the BTC Supervised Learning model
@@ -16,18 +17,28 @@ export async function POST(request: NextRequest) {
 
     // Optional: lightweight file debug (server-safe)
     const file = formData.get('file') as File | null;
-    if (file) {
-      console.log(`BTC-SL request: file name=${file.name || 'unknown'}, size=${(file as File).size ?? 'n/a'}B`);
+    if (!file) {
+      return NextResponse.json(
+        { success: false, error: 'No audio file provided' },
+        { status: 400 }
+      );
     }
 
+    const normalizedFile = await normalizeUploadedAudioFile(file);
+    console.log(`BTC-SL request: file name=${normalizedFile.name || 'unknown'}, size=${normalizedFile.size}B`);
+
     // Ensure detector is set for unified backend endpoint
-    if (!formData.get('detector')) formData.set('detector', 'btc-sl');
+    const backendFormData = new FormData();
+    backendFormData.append('file', normalizedFile, normalizedFile.name);
+    backendFormData.append('detector', 'btc-sl');
+    backendFormData.append('model', 'btc-sl');
+    backendFormData.append('chord_dict', 'large_voca');
 
     // Forward the request to the Python backend unified endpoint
     const backendUrl = getPythonApiUrl();
     const response = await fetch(`${backendUrl}/api/recognize-chords`, {
       method: 'POST',
-      body: formData,
+      body: backendFormData,
     });
 
     if (!response.ok) {

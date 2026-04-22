@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAudioDurationFromFile } from '@/utils/audioDurationUtils';
 import { createSafeTimeoutSignal } from '@/utils/environmentUtils';
 import { getPythonApiUrl } from '@/config/serverBackend';
+import { normalizeUploadedAudioFile } from '@/utils/serverAudioUpload';
 
 
 
@@ -37,6 +38,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedFile = await normalizeUploadedAudioFile(file);
+
     // Add required parameters for Python backend if not present
     if (!formData.has('chord_dict')) {
       // Get model from form data to determine chord_dict
@@ -51,21 +54,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Log file info
-    const fileSizeMB = file.size / 1024 / 1024;
+    const fileSizeMB = normalizedFile.size / 1024 / 1024;
     console.log(`📁 Processing audio file: ${file.name} (${fileSizeMB.toFixed(2)}MB)`);
 
     // Import offload upload service to use environment-aware logic
     const { offloadUploadService } = await import('@/services/storage/offloadUploadService');
 
     // Use environment-aware blob upload decision (same as beat detection)
-    if (offloadUploadService.shouldUseBlobUpload(file.size)) {
+    if (offloadUploadService.shouldUseBlobUpload(normalizedFile.size)) {
       console.log(`🔄 Environment-aware decision: Using Firebase offload upload for ${fileSizeMB.toFixed(2)}MB file`);
 
       try {
         const model = formData.get('model') as string || 'chord-cnn-lstm';
 
         // Use Firebase offload upload for large files
-        const blobResult = await offloadUploadService.recognizeChordsBlobUpload(file, model);
+        const blobResult = await offloadUploadService.recognizeChordsBlobUpload(normalizedFile, model);
 
         if (blobResult.success) {
           console.log(`✅ Firebase offload chord recognition completed successfully`);
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     // Log audio duration for debugging before sending to backend ML service
     try {
-      const duration = await getAudioDurationFromFile(file);
+      const duration = await getAudioDurationFromFile(normalizedFile);
       console.log(`🎵 Audio duration detected: ${duration.toFixed(1)} seconds - proceeding with chord recognition analysis`);
     } catch (durationError) {
       console.warn(`⚠️ Could not detect audio duration for debugging: ${durationError}`);
@@ -118,9 +121,21 @@ export async function POST(request: NextRequest) {
 
     // Forward the request to the backend with extended timeout
     console.log(`📡 Making fetch request to Python backend...`);
+    const backendFormData = new FormData();
+    backendFormData.append('file', normalizedFile, normalizedFile.name);
+    if (formData.get('model')) {
+      backendFormData.append('model', String(formData.get('model')));
+    }
+    if (formData.get('detector')) {
+      backendFormData.append('detector', String(formData.get('detector')));
+    }
+    if (formData.get('chord_dict')) {
+      backendFormData.append('chord_dict', String(formData.get('chord_dict')));
+    }
+
     const response = await fetch(targetUrl, {
       method: 'POST',
-      body: formData,
+      body: backendFormData,
       headers: {
         // Don't set Content-Type - let the browser set it with boundary for FormData
       },
