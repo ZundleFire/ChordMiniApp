@@ -55,6 +55,7 @@ RUN adduser --system --uid 1001 nextjs
 # Install runtime dependencies including yt-dlp and ffmpeg for audio extraction
 RUN apk add --no-cache \
     curl \
+    git \
     python3 \
     py3-pip \
     ffmpeg \
