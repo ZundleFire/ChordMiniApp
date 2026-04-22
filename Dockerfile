@@ -44,8 +44,9 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Optional build toggle for lyrics-sync installation.
-# Keep disabled by default because it significantly increases image size.
+# Optional build toggle for lyrics-sync source checkout.
+# Keep disabled by default because the upstream project has a heavy dependency chain
+# and is not distributed as a pip-installable package.
 ARG LYRICS_SYNC_INSTALL=false
 
 # Create non-root user for security
@@ -61,7 +62,7 @@ RUN apk add --no-cache \
     ffmpeg \
     && pip3 install --no-cache-dir --break-system-packages yt-dlp \
         && if [ "$LYRICS_SYNC_INSTALL" = "true" ]; then \
-            pip3 install --no-cache-dir --break-system-packages git+https://github.com/mikezzb/lyrics-sync.git; \
+            git clone --depth=1 https://github.com/mikezzb/lyrics-sync.git /opt/lyrics-sync; \
         fi \
     && rm -rf /var/cache/apk/*
 
@@ -87,6 +88,7 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV LYRICS_SYNC_ENABLED=false
 ENV LYRICS_SYNC_PYTHON_BIN=python3
+ENV PYTHONPATH=/opt/lyrics-sync
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
