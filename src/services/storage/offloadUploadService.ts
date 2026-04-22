@@ -216,7 +216,17 @@ class OffloadUploadService {
         uploadTask.on('state_changed', undefined, reject, () => resolve(uploadTask.snapshot));
       });
 
-      return getDownloadURL(snapshot.ref);
+      const downloadUrl = await getDownloadURL(snapshot.ref);
+      const isMalformedUploadEndpoint = downloadUrl.includes('/o?name=');
+      const isMediaDownloadUrl = downloadUrl.includes('/o/') && downloadUrl.includes('alt=media');
+
+      if (isMalformedUploadEndpoint || !isMediaDownloadUrl) {
+        throw new Error(
+          `Firebase returned a non-download URL for offload upload: ${downloadUrl}. Verify storage bucket configuration and Firebase SDK runtime config.`,
+        );
+      }
+
+      return downloadUrl;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const normalized = errorMessage.toLowerCase();
@@ -228,7 +238,8 @@ class OffloadUploadService {
         normalized.includes('storage/retry-limit-exceeded')
         || normalized.includes('max retry time for operation exceeded')
         || normalized.includes('cors')
-        || normalized.includes('preflight');
+        || normalized.includes('preflight')
+        || normalized.includes('non-download url');
 
       if (isPermissionError || isRetryOrCorsError) {
         this.offloadTemporarilyDisabled = true;

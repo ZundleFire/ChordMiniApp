@@ -1,4 +1,4 @@
-const FIREBASE_PROXY_REDIRECT_DISABLED_VALUES = new Set(['0', 'false', 'off', 'no']);
+const FIREBASE_PROXY_REDIRECT_ENABLED_VALUES = new Set(['1', 'true', 'on', 'yes']);
 
 export const AUDIO_PROXY_FORCE_QUERY_PARAM = 'forceProxy';
 export const AUDIO_PROXY_FIREBASE_REDIRECT_ENV = 'AUDIO_PROXY_FIREBASE_REDIRECT_ENABLED';
@@ -43,10 +43,10 @@ export function isFirebaseProxyRedirectEnabled(
   envValue: string | undefined = process.env[AUDIO_PROXY_FIREBASE_REDIRECT_ENV],
 ): boolean {
   if (envValue == null || envValue.trim() === '') {
-    return true;
+    return false;
   }
 
-  return !FIREBASE_PROXY_REDIRECT_DISABLED_VALUES.has(envValue.trim().toLowerCase());
+  return FIREBASE_PROXY_REDIRECT_ENABLED_VALUES.has(envValue.trim().toLowerCase());
 }
 
 export function isForceProxyRequested(forceProxyParam: string | null): boolean {

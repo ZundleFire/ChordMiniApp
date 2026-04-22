@@ -263,6 +263,26 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // User favorites document (single doc keyed by auth uid)
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // User playlists collection
+    match /playlists/{playlistId} {
+      // Owners can read their playlists. Public playlists are readable by anyone.
+      allow read: if resource.data.isPublic == true ||
+                     (request.auth != null && resource.data.userId == request.auth.uid);
+
+      // Playlist creator must be the authenticated owner.
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid;
+
+      // Only the owner can modify/delete a playlist.
+      allow update, delete: if request.auth != null &&
+                               resource.data.userId == request.auth.uid;
+    }
+
     // Key detection cache collection - for storing musical key analysis results
     match /keyDetections/{documentId} {
       // Allow read access to everyone for caching functionality
